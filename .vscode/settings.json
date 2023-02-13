@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "eth_smart_nic_250soc.h": "c",
+        "netdevice.h": "c",
+        "module.h": "c"
+    }
+}
