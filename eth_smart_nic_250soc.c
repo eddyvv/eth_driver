@@ -1,43 +1,52 @@
 #include <linux/netdevice.h>
 #include <linux/module.h>
-#include <linux/platform_device.h>
+#include <linux/pci.h>
 #include <linux/of.h>
 #include "eth_smart_nic_250soc.h"
 
+char xtnet_driver_name[] = "xtnet_eth";
 
-static const struct of_device_id eth_250soc_of_matches[] = {
-	{ .compatible = "xtic,eth_250soc", },
-	{ /* sentinel */ }
+#define PCI_VENDOR_ID_XTIC 0x8086
+
+static const struct pci_device_id xtnet_pci_tbl[] = {
+    {PCI_DEVICE(PCI_VENDOR_ID_XTIC, 0x100f)},
 };
-MODULE_DEVICE_TABLE(of, eth_250soc_of_matches);
 
-
-static int eth_250soc_probe(struct platform_device *pdev)
+static int xtnet_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
-    printk("eth_250soc_probe\n");
+    printk("xtnet_probe\n");
     return 0;
 }
 
-static int eth_250soc_remove(struct platform_device *pdev)
+static void xtnet_remove(struct pci_dev *pdev)
 {
-    printk("eth_250soc_remove\n");
-    return 0;
+    printk("xtnet_remove\n");
 }
 
-
-static struct platform_driver eth_250soc_driver = {
-	.probe		= eth_250soc_probe,
-	.remove		= eth_250soc_remove,
-	.driver		= {
-		.name		= "eth_250soc_nic",
-		.of_match_table	= of_match_ptr(eth_250soc_of_matches),
-	},
+static struct pci_driver xtnet_driver = {
+    .name     = xtnet_driver_name,
+    .id_table = xtnet_pci_tbl,
+    .probe		= xtnet_probe,
+    .remove		= xtnet_remove,
 };
 
-module_platform_driver(eth_250soc_driver);
+static int __init xtnet_init_module(void)
+{
+    int ret;
+    printk("xtnet_init_module\n");
+    ret = pci_register_driver(&xtnet_driver);
+    printk("ret = 0x%x\n",ret);
+    return ret;
+}
+static void __exit xtnet_exit_module(void)
+{
+	pci_unregister_driver(&xtnet_driver);
+}
 
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("XTIC Ethernet driver");
-MODULE_AUTHOR("Haavard Skinnemoen (Atmel)");
-MODULE_ALIAS("platform:eth_250soc");
+module_init(xtnet_init_module);
+module_exit(xtnet_exit_module);
 
+MODULE_DESCRIPTION("XTIC 25Gbps Ethernet driver");
+MODULE_AUTHOR("XTIC Corporation,<xtnetic@xtnetic.com>");
+MODULE_ALIAS("platform:xtnet");
+MODULE_LICENSE("GPL v2");
