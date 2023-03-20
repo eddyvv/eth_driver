@@ -7,9 +7,9 @@
 char xtnet_driver_name[] = "xtnet_eth";
 
 #define PCI_VENDOR_ID_XTIC 0x8086
-
+#define PCI_DEVICE_ID_XTIC 0x100f
 static const struct pci_device_id xtnet_pci_tbl[] = {
-    {PCI_DEVICE(PCI_VENDOR_ID_XTIC, 0x100f)},
+    {PCI_DEVICE(PCI_VENDOR_ID_XTIC, PCI_DEVICE_ID_XTIC)},
 };
 
 static int xtnet_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
@@ -38,11 +38,13 @@ static int __init xtnet_init_module(void)
     printk("ret = 0x%x\n",ret);
     return ret;
 }
+
 static void __exit xtnet_exit_module(void)
 {
 	pci_unregister_driver(&xtnet_driver);
 }
 
+/* 驱动注册与卸载入口 */
 module_init(xtnet_init_module);
 module_exit(xtnet_exit_module);
 
