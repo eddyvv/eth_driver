@@ -3,7 +3,9 @@
         {
             "name": "Linux",
             "includePath": [
-                "/usr/src/linux-headers-5.15.0-56-generic/include"
+                "/usr/src/linux-headers-5.15.0-60-generic/include",
+                "/usr/src/linux-headers-5.15.0-60-generic/include/linux",
+                "/home/eddy/code/eth_driver"
             ],
             "defines": [],
             "cStandard": "c11",

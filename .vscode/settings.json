@@ -1,7 +1,9 @@
 {
     "files.associations": {
+        "Makefile2": "makefile",
         "eth_smart_nic_250soc.h": "c",
         "netdevice.h": "c",
-        "module.h": "c"
+        "module.h": "c",
+        "pci.h": "c"
     }
 }
