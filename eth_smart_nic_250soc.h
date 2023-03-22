@@ -13,8 +13,8 @@ char xtnet_driver_name[] = "xtnet_eth";
 		__func__, __LINE__, current->pid,		\
 	       ##__VA_ARGS__)
 
-#define PCI_VENDOR_ID_XTIC 0x10ec
-#define PCI_DEVICE_ID_XTIC 0x8168
+#define PCI_VENDOR_ID_XTIC 0x1057
+#define PCI_DEVICE_ID_XTIC 0x0004
 
 #define BAR_0 0
 
@@ -33,8 +33,8 @@ struct xtnet_core_dev {
     /* bar地址 */
     phys_addr_t     bar_addr;
     /* 映射后的bar地址 */
-    u8 __iomem *hw_addr;
-    // unsigned long io_base;
+    u8 __iomem      *hw_addr;
+    long            range;
     /* xtnet设备状态 */
     enum xtnet_device_state     state;
     /* 绑定的PCI设备 */
@@ -47,8 +47,22 @@ struct xtnet_core_dev {
     struct net_device   *netdev;
 };
 
+/*
+ * register write
+ */
+static inline void xtnet_iow(struct xtnet_core_dev *lp, off_t offset,
+			       u32 value)
+{
+	iowrite32(value, lp->hw_addr + offset);
+}
 
-
+/*
+ * register read
+ */
+static inline u32 xtnet_ior(struct xtnet_core_dev *lp, off_t offset)
+{
+	return ioread32(lp->hw_addr + offset);
+}
 
 
 

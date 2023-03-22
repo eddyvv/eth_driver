@@ -18,10 +18,10 @@ install:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) modules
 	sudo cp ./eth_smart_nic_250soc.ko /lib/modules/$(shell uname -r)/kernel/drivers
-	sudo modprobe -v eth_smart_nic_250soc
+	sudo insmod eth_smart_nic_250soc.ko
 clean:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	sudo rm /lib/modules/$(shell uname -r)/kernel/drivers/eth_smart_nic_250soc.ko
-	sudo modprobe -r eth_smart_nic_250soc
+	sudo rmmod eth_smart_nic_250soc
 
 

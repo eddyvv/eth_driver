@@ -2,7 +2,7 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/of.h>
-#include <linux/dev_printk.h>
+//#include <linux/dev_printk.h>
 #include <linux/etherdevice.h>
 
 static void release_bar(struct pci_dev *pdev);
@@ -78,6 +78,30 @@ static void release_bar(struct pci_dev *pdev)
 	pci_release_regions(pdev);
 }
 
+void skel_get_configs(struct pci_dev *pdev,struct xtnet_core_dev *dev)
+{
+	uint8_t val1;
+	uint16_t val2;
+	uint32_t val4;
+    uint32_t val5;
+
+	pci_read_config_word(pdev,PCI_VENDOR_ID, &val2);
+	printk("vendorID:0x%x\n",val2);
+	pci_read_config_word(pdev,PCI_DEVICE_ID, &val2);
+	printk("deviceID:0x%x\n",val2);
+	pci_read_config_byte(pdev, PCI_REVISION_ID, &val1);
+	printk("revisionID:0x%x\n",val1);
+	pci_read_config_dword(pdev,PCI_CLASS_REVISION, &val4);
+	printk("class:0x%x\n",val4);
+    pci_read_config_dword(pdev, PCI_COMMAND, &val5);
+    printk("command:0x%x\n",val5);
+    pci_read_config_dword(pdev,PCI_BASE_ADDRESS_0, &val5);
+    printk("bar0:0x%x\n",val5);
+    // pci_write_config_dword(pdev, PCI_BASE_ADDRESS_0, dev->bar_addr);
+    // pci_read_config_dword(pdev,PCI_BASE_ADDRESS_0, &val5);
+    // printk("bar0:0x%x\n",val5);
+}
+
 /*
  PCI初始化
 */
@@ -85,9 +109,11 @@ static int xtnet_pci_init(struct xtnet_core_dev *dev, struct pci_dev *pdev,
 			 const struct pci_device_id *id)
 {
     int err;
-
+    int reg_0;
+    int val;
     printk("%s start!\n",__func__);
 
+    pci_select_bars(pdev, IORESOURCE_MEM);
     /* 打开pci设备，成功返回0 */
     err = pci_enable_device(pdev);
     if (err){
@@ -95,49 +121,52 @@ static int xtnet_pci_init(struct xtnet_core_dev *dev, struct pci_dev *pdev,
         return err;
     }
 
+    pci_read_config_dword(pdev, PCI_COMMAND, &val);
+    pci_write_config_dword(pdev, PCI_COMMAND, val | PCI_COMMAND_MEMORY);
+
         /* 获取bar0地址 */
     dev->bar_addr = pci_resource_start(pdev, 0);
     printk("bar0 = 0x%x\n", dev->bar_addr);
+
+    dev->range = pci_resource_end(pdev, 0) - dev->bar_addr + 1;
+    printk("bar0 range = 0x%x\n", dev->range);
     /* 请求PCI资源 */
     err = request_bar(pdev);
 	if (err) {
 		xtnet_core_err(dev, "error requesting BARs, aborting\n");
 		 goto xt_err_disable;
 	}
-    /* pci设备与xtnet网络设备绑定 */
-    pci_set_drvdata(dev->pdev, dev);
+
     /* 设置PCI主控制器模式，并启用DMA传输 */
     pci_set_master(pdev);
     /* 设置PCI DMA功能 */
     err = set_dma_caps(pdev);
 	if (err) {
 		xtnet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
-		 goto xt_err_clr_master;
 	}
     /* 映射bar0至虚拟地址空间 */
     dev->hw_addr = pci_ioremap_bar(pdev, BAR_0);
     printk("dev->hw_addr = 0x%x\n",dev->hw_addr);
     if (!dev->hw_addr){
         xtnet_core_err(dev, "Failed pci_ioremap_bar\n");
+        goto xt_err_clr_master;
     }
 
-    // for (i = BAR_1; i < PCI_STD_NUM_BARS; i++) {
-    //     if (pci_resource_len(pdev, i) == 0)
-    //         continue;
-    //     if (pci_resource_flags(pdev, i) & IORESOURCE_IO) {
-    //         dev->io_base = pci_resource_start(pdev, i);
-    //         break;
-    //     }
-    // }
-
+    /* pci设备与xtnet网络设备绑定 */
+    pci_set_drvdata(dev->pdev, dev);
     err = pci_save_state(pdev);
 	if (err){
 		xtnet_core_err(dev, "error pci_save_state\n");
         return err;
     }
-
+    skel_get_configs(pdev,dev);
+    xtnet_iow(dev, 0, 0x0);
+    reg_0 = xtnet_ior(dev, 0x110c);
+    printk("reg_0 = 0x%x\n",reg_0);
     return 0;
 
+xt_err_ioremap:
+    iounmap(dev->hw_addr);
 /* 错误处理 */
 xt_err_clr_master:
 	pci_clear_master(dev->pdev);
@@ -205,6 +234,7 @@ static void xtnet_remove(struct pci_dev *pdev)
 {
     struct xtnet_core_dev *dev  = pci_get_drvdata(pdev);
     printk("%s\n",__func__);
+    iounmap(dev->hw_addr);
     xtnet_pci_close(dev);
     free_netdev(dev->netdev);
 }
