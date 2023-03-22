@@ -13,10 +13,10 @@ char xtnet_driver_name[] = "xtnet_eth";
 		__func__, __LINE__, current->pid,		\
 	       ##__VA_ARGS__)
 
+#define PCI_VENDOR_ID_XTIC 0x10ec
+#define PCI_DEVICE_ID_XTIC 0x8168
 
-
-#define PCI_VENDOR_ID_XTIC 0x8086
-#define PCI_DEVICE_ID_XTIC 0x100f
+#define BAR_0 0
 
 enum xtnet_pci_status {
 	XTNET_PCI_STATUS_DISABLED,
@@ -31,17 +31,20 @@ enum xtnet_device_state {
 
 struct xtnet_core_dev {
     /* bar地址 */
-    phys_addr_t bar_addr;
+    phys_addr_t     bar_addr;
+    /* 映射后的bar地址 */
+    u8 __iomem *hw_addr;
+    // unsigned long io_base;
     /* xtnet设备状态 */
-    enum xtnet_device_state	state;
+    enum xtnet_device_state     state;
     /* 绑定的PCI设备 */
-    struct pci_dev  *pdev;
+    struct pci_dev      *pdev;
     /* PCI设备状态 */
-    enum xtnet_pci_status	pci_status;
+    enum xtnet_pci_status       pci_status;
     /* 设备对象 */
-    struct device *device;
+    struct device       *device;
     /* 网络设备 */
-    struct net_device *netdev;
+    struct net_device   *netdev;
 };
 
 

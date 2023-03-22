@@ -88,23 +88,24 @@ static int xtnet_pci_init(struct xtnet_core_dev *dev, struct pci_dev *pdev,
 
     printk("%s start!\n",__func__);
 
-    /* pci设备与xtnet网络设备绑定 */
-    pci_set_drvdata(dev->pdev, dev);
-    /* 获取bar0地址 */
-    dev->bar_addr = pci_resource_start(pdev, 0);
     /* 打开pci设备，成功返回0 */
     err = pci_enable_device(pdev);
     if (err){
         xtnet_core_err(dev,"Cannot enable PCI device, aborting\n");
         return err;
     }
+
+        /* 获取bar0地址 */
+    dev->bar_addr = pci_resource_start(pdev, 0);
+    printk("bar0 = 0x%x\n", dev->bar_addr);
     /* 请求PCI资源 */
     err = request_bar(pdev);
 	if (err) {
 		xtnet_core_err(dev, "error requesting BARs, aborting\n");
 		 goto xt_err_disable;
 	}
-
+    /* pci设备与xtnet网络设备绑定 */
+    pci_set_drvdata(dev->pdev, dev);
     /* 设置PCI主控制器模式，并启用DMA传输 */
     pci_set_master(pdev);
     /* 设置PCI DMA功能 */
@@ -113,6 +114,22 @@ static int xtnet_pci_init(struct xtnet_core_dev *dev, struct pci_dev *pdev,
 		xtnet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
 		 goto xt_err_clr_master;
 	}
+    /* 映射bar0至虚拟地址空间 */
+    dev->hw_addr = pci_ioremap_bar(pdev, BAR_0);
+    printk("dev->hw_addr = 0x%x\n",dev->hw_addr);
+    if (!dev->hw_addr){
+        xtnet_core_err(dev, "Failed pci_ioremap_bar\n");
+    }
+
+    // for (i = BAR_1; i < PCI_STD_NUM_BARS; i++) {
+    //     if (pci_resource_len(pdev, i) == 0)
+    //         continue;
+    //     if (pci_resource_flags(pdev, i) & IORESOURCE_IO) {
+    //         dev->io_base = pci_resource_start(pdev, i);
+    //         break;
+    //     }
+    // }
+
     err = pci_save_state(pdev);
 	if (err){
 		xtnet_core_err(dev, "error pci_save_state\n");
@@ -186,7 +203,10 @@ xt_pci_init_err:
 
 static void xtnet_remove(struct pci_dev *pdev)
 {
+    struct xtnet_core_dev *dev  = pci_get_drvdata(pdev);
     printk("%s\n",__func__);
+    xtnet_pci_close(dev);
+    free_netdev(dev->netdev);
 }
 
 static struct pci_driver xtnet_driver = {
