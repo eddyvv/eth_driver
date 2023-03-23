@@ -20,7 +20,7 @@ install:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) modules
 	sudo cp ./$(MODULE_NAME).ko /lib/modules/$(shell uname -r)/kernel/drivers
-	sudo insmod ./$(BUILD_DIR)/$(MODULE_NAME).ko
+	sudo insmod ./$(MODULE_NAME).ko
 clean:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	sudo rm /lib/modules/$(shell uname -r)/kernel/drivers/$(MODULE_NAME).ko

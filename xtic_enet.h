@@ -42,6 +42,14 @@ char xtenet_driver_name[] = "xtenet_eth";
 #define XTIC_NET_MTU			   1500 /* Max MTU of an Ethernet frame */
 #define XTIC_NET_JUMBO_MTU		      9000 /* Max MTU of a jumbo Eth. frame */
 
+/* Axi Ethernet Synthesis features */
+#define XAE_FEATURE_PARTIAL_RX_CSUM	BIT(0)
+#define XAE_FEATURE_PARTIAL_TX_CSUM	BIT(1)
+#define XAE_FEATURE_FULL_RX_CSUM	BIT(2)
+#define XAE_FEATURE_FULL_TX_CSUM	BIT(3)
+
+#define XAE_NO_CSUM_OFFLOAD		0
+
 /* Enable recognition of flow control frames on Rx. Default: enabled (set) */
 #define XTIC_OPTION_FLOW_CONTROL			BIT(4)
 
@@ -154,6 +162,9 @@ struct xtenet_core_dev {
 
     u16 tx_bd_num;
 	u32 rx_bd_num;
+
+	int csum_offload_on_tx_path;
+	int csum_offload_on_rx_path;
     /* bar地址 */
     phys_addr_t     bar_addr;
     /* 映射后的bar地址 */

@@ -147,8 +147,8 @@ static void skel_get_configs(struct pci_dev *pdev)
     xtenet_iow(dev, 0, 0x0);
     reg_0 = xtenet_ior(dev, 0x110c);
     printk("reg_0 = 0x%x\n",reg_0);
-}
 
+}
 /*
  PCI初始化
 */
@@ -167,10 +167,6 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
         return err;
     }
 
-    /* 使能PCI_COMMAND_MEMORY */
-    pci_read_config_dword(pdev, PCI_COMMAND, &val);
-    pci_write_config_dword(pdev, PCI_COMMAND, val | PCI_COMMAND_MEMORY);
-
     /* 获取bar0地址 */
     dev->bar_addr = pci_resource_start(pdev, 0);
     printk("bar0 = 0x%llx\n", dev->bar_addr);
@@ -184,6 +180,9 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
 		 goto xt_err_disable;
 	}
 
+    /* 使能PCI_COMMAND_MEMORY */
+    pci_read_config_dword(pdev, PCI_COMMAND, &val);
+    pci_write_config_dword(pdev, PCI_COMMAND, val | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
     /* 设置PCI主控制器模式，并启用DMA传输 */
     pci_set_master(pdev);
     /* 设置PCI DMA功能 */
@@ -221,7 +220,7 @@ xt_err_disable:
 	return err;
 }
 
-int xtenet_init_one(struct xtenet_core_dev *dev)
+static int xtenet_init_one(struct xtenet_core_dev *dev)
 {
     int err;
     dev->state = XTNET_DEVICE_STATE_UP;
@@ -234,6 +233,8 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     int err;
     struct xtenet_core_dev *dev;
     struct net_device *ndev;
+    int txcsum;
+    int rxcsum;
     u16 num_queues = XTIC_MAX_QUEUES;
 
     printk("%s start!\n", __func__);
@@ -273,11 +274,58 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     /* 设置校验和卸载，但如果未指定，则默认为关闭 */
     dev->features = 0;
 
-    err = xtenet_init_one(dev);
-	if (err) {
-		xtenet_core_err(dev, "xtenet_init_one failed with error code %d\n", err);
-		goto xt_err_init_one;
-	}
+    // txcsum = ;
+    if(txcsum){
+        switch(txcsum){
+        case 1:
+            dev->csum_offload_on_tx_path =
+				XAE_FEATURE_PARTIAL_TX_CSUM;
+			dev->features |= XAE_FEATURE_PARTIAL_TX_CSUM;
+			/* Can checksum TCP/UDP over IPv4. */
+			ndev->features |= NETIF_F_IP_CSUM | NETIF_F_SG;
+        break;
+        case 2:
+            dev->csum_offload_on_tx_path =
+				XAE_FEATURE_FULL_TX_CSUM;
+			dev->features |= XAE_FEATURE_FULL_TX_CSUM;
+			/* Can checksum TCP/UDP over IPv4. */
+			ndev->features |= NETIF_F_IP_CSUM | NETIF_F_SG;
+        break;
+        default:
+            dev->csum_offload_on_tx_path = XAE_NO_CSUM_OFFLOAD;
+        break;
+        }
+    }
+    // rxcsum = ;
+    if(rxcsum){
+        switch(rxcsum){
+        case 1:
+            dev->csum_offload_on_rx_path =
+				XAE_FEATURE_PARTIAL_RX_CSUM;
+			dev->features |= XAE_FEATURE_PARTIAL_RX_CSUM;
+			/* Can checksum TCP/UDP over IPv4. */
+			ndev->features |= NETIF_F_IP_CSUM | NETIF_F_SG;
+        break;
+        case 2:
+            dev->csum_offload_on_rx_path =
+				XAE_FEATURE_FULL_RX_CSUM;
+			dev->features |= XAE_FEATURE_FULL_RX_CSUM;
+			/* Can checksum TCP/UDP over IPv4. */
+			ndev->features |= NETIF_F_IP_CSUM | NETIF_F_SG;
+        break;
+        default:
+            dev->csum_offload_on_rx_path = XAE_NO_CSUM_OFFLOAD;
+        break;
+        }
+    }
+
+
+
+    // err = xtenet_init_one(dev);
+	// if (err) {
+	// 	xtenet_core_err(dev, "xtenet_init_one failed with error code %d\n", err);
+	// 	goto xt_err_init_one;
+	// }
     return 0;
 /* 错误处理 */
 xt_err_init_one:
@@ -291,12 +339,11 @@ xt_pci_init_err:
 static void xtenet_remove(struct pci_dev *pdev)
 {
     struct xtenet_core_dev *dev = pci_get_drvdata(pdev);
-    struct net_device *ndev = pci_get_drvdata(pdev);
 
     printk("%s\n",__func__);
     iounmap(dev->hw_addr);
     xtenet_pci_close(dev);
-    free_netdev(ndev);
+    free_netdev(dev->ndev);
 }
 
 static struct pci_driver xtenet_driver = {
