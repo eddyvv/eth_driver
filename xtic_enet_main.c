@@ -1,4 +1,5 @@
-#include "eth_smart_nic_250soc.h"
+#include "xtic_enet.h"
+#include "xtic_enet_config.h"
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/of.h>
@@ -7,14 +8,56 @@
 
 static void release_bar(struct pci_dev *pdev);
 
-static const struct pci_device_id xtnet_pci_tbl[] = {
+static const struct pci_device_id xtenet_pci_tbl[] = {
     {PCI_DEVICE(PCI_VENDOR_ID_XTIC, PCI_DEVICE_ID_XTIC)},
     {0,}
 };
 
-MODULE_DEVICE_TABLE(pci, xtnet_pci_tbl);
+MODULE_DEVICE_TABLE(pci, xtenet_pci_tbl);
 
-static void xtnet_pci_disable_device(struct xtnet_core_dev *dev)
+
+
+
+
+
+
+
+
+
+static int xtenet_open(struct net_device *ndev)
+{
+    int ret = 0, i = 0;
+    printk("%s start\n",__func__);
+
+
+    printk("%s end\n",__func__);
+    return 0;
+}
+
+static const struct net_device_ops xticenet_netdev_ops = {
+// #ifdef CONFIG_XILINX_TSN
+// 	.ndo_open = xticenet_tsn_open,
+// #else
+	.ndo_open = xtenet_open,
+// #endif
+// 	.ndo_stop = xticenet_stop,
+// #ifdef CONFIG_XILINX_TSN
+// 	.ndo_start_xmit = xticenet_tsn_xmit,
+// #else
+// 	.ndo_start_xmit = xticenet_start_xmit,
+// #endif
+// 	.ndo_change_mtu	= xticenet_change_mtu,
+// 	.ndo_set_mac_address = netdev_set_mac_address,
+// 	.ndo_validate_addr = eth_validate_addr,
+// 	.ndo_set_rx_mode = xticenet_set_multicast_list,
+// 	.ndo_do_ioctl = xticenet_ioctl,
+// #ifdef CONFIG_NET_POLL_CONTROLLER
+// 	.ndo_poll_controller = xticenet_poll_controller,
+// #endif
+};
+
+
+static void xtenet_pci_disable_device(struct xtenet_core_dev *dev)
 {
 	struct pci_dev *pdev = dev->pdev;
 
@@ -24,12 +67,12 @@ static void xtnet_pci_disable_device(struct xtnet_core_dev *dev)
 	}
 }
 
-static void xtnet_pci_close(struct xtnet_core_dev *dev)
+static void xtenet_pci_close(struct xtenet_core_dev *dev)
 {
 	// iounmap(dev->iseg);
 	pci_clear_master(dev->pdev);
 	release_bar(dev->pdev);
-	xtnet_pci_disable_device(dev);
+	xtenet_pci_disable_device(dev);
 }
 
 /*
@@ -78,12 +121,15 @@ static void release_bar(struct pci_dev *pdev)
 	pci_release_regions(pdev);
 }
 
-void skel_get_configs(struct pci_dev *pdev,struct xtnet_core_dev *dev)
+/*
+ * 读取PCI核配置空间相应信息，配置PCI设备寄存器并读取
+ */
+static void skel_get_configs(struct pci_dev *pdev)
 {
 	uint8_t val1;
 	uint16_t val2;
-	uint32_t val4;
-    uint32_t val5;
+	uint32_t val4, val5,reg_0;
+    struct xtenet_core_dev *dev  = pci_get_drvdata(pdev);
 
 	pci_read_config_word(pdev,PCI_VENDOR_ID, &val2);
 	printk("vendorID:0x%x\n",val2);
@@ -97,19 +143,19 @@ void skel_get_configs(struct pci_dev *pdev,struct xtnet_core_dev *dev)
     printk("command:0x%x\n",val5);
     pci_read_config_dword(pdev,PCI_BASE_ADDRESS_0, &val5);
     printk("bar0:0x%x\n",val5);
-    // pci_write_config_dword(pdev, PCI_BASE_ADDRESS_0, dev->bar_addr);
-    // pci_read_config_dword(pdev,PCI_BASE_ADDRESS_0, &val5);
-    // printk("bar0:0x%x\n",val5);
+
+    xtenet_iow(dev, 0, 0x0);
+    reg_0 = xtenet_ior(dev, 0x110c);
+    printk("reg_0 = 0x%x\n",reg_0);
 }
 
 /*
  PCI初始化
 */
-static int xtnet_pci_init(struct xtnet_core_dev *dev, struct pci_dev *pdev,
+static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
 			 const struct pci_device_id *id)
 {
     int err;
-    int reg_0;
     int val;
     printk("%s start!\n",__func__);
 
@@ -117,23 +163,24 @@ static int xtnet_pci_init(struct xtnet_core_dev *dev, struct pci_dev *pdev,
     /* 打开pci设备，成功返回0 */
     err = pci_enable_device(pdev);
     if (err){
-        xtnet_core_err(dev,"Cannot enable PCI device, aborting\n");
+        xtenet_core_err(dev,"Cannot enable PCI device, aborting\n");
         return err;
     }
 
+    /* 使能PCI_COMMAND_MEMORY */
     pci_read_config_dword(pdev, PCI_COMMAND, &val);
     pci_write_config_dword(pdev, PCI_COMMAND, val | PCI_COMMAND_MEMORY);
 
-        /* 获取bar0地址 */
+    /* 获取bar0地址 */
     dev->bar_addr = pci_resource_start(pdev, 0);
-    printk("bar0 = 0x%x\n", dev->bar_addr);
+    printk("bar0 = 0x%llx\n", dev->bar_addr);
 
     dev->range = pci_resource_end(pdev, 0) - dev->bar_addr + 1;
     printk("bar0 range = 0x%x\n", dev->range);
     /* 请求PCI资源 */
     err = request_bar(pdev);
 	if (err) {
-		xtnet_core_err(dev, "error requesting BARs, aborting\n");
+		xtenet_core_err(dev, "error requesting BARs, aborting\n");
 		 goto xt_err_disable;
 	}
 
@@ -142,27 +189,25 @@ static int xtnet_pci_init(struct xtnet_core_dev *dev, struct pci_dev *pdev,
     /* 设置PCI DMA功能 */
     err = set_dma_caps(pdev);
 	if (err) {
-		xtnet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
+		xtenet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
 	}
     /* 映射bar0至虚拟地址空间 */
     dev->hw_addr = pci_ioremap_bar(pdev, BAR_0);
     printk("dev->hw_addr = 0x%x\n",dev->hw_addr);
     if (!dev->hw_addr){
-        xtnet_core_err(dev, "Failed pci_ioremap_bar\n");
+        xtenet_core_err(dev, "Failed pci_ioremap_bar\n");
         goto xt_err_clr_master;
     }
 
-    /* pci设备与xtnet网络设备绑定 */
+    /* pci设备与xtenet网络设备绑定 */
     pci_set_drvdata(dev->pdev, dev);
     err = pci_save_state(pdev);
 	if (err){
-		xtnet_core_err(dev, "error pci_save_state\n");
+		xtenet_core_err(dev, "error pci_save_state\n");
         return err;
     }
-    skel_get_configs(pdev,dev);
-    xtnet_iow(dev, 0, 0x0);
-    reg_0 = xtnet_ior(dev, 0x110c);
-    printk("reg_0 = 0x%x\n",reg_0);
+    skel_get_configs(pdev);
+
     return 0;
 
 xt_err_ioremap:
@@ -172,100 +217,115 @@ xt_err_clr_master:
 	pci_clear_master(dev->pdev);
 	release_bar(dev->pdev);
 xt_err_disable:
-	xtnet_pci_disable_device(dev);
+	xtenet_pci_disable_device(dev);
 	return err;
 }
 
-int xtnet_init_one(struct xtnet_core_dev *dev)
+int xtenet_init_one(struct xtenet_core_dev *dev)
 {
     int err;
     dev->state = XTNET_DEVICE_STATE_UP;
 
-// /* 错误处理 */
-// xt_err_function:
-// 	dev->state = XTNET_DEVICE_STATE_INTERNAL_ERROR;
-
     return err;
 }
 
-static int xtnet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
     int err;
-    struct xtnet_core_dev *dev;
-    struct net_device *netdev;
+    struct xtenet_core_dev *dev;
+    struct net_device *ndev;
+    u16 num_queues = XTIC_MAX_QUEUES;
 
     printk("%s start!\n", __func__);
-    /* 申请用于存放xtnet设备的空间 */
-    netdev = alloc_etherdev(sizeof(struct xtnet_core_dev));
-    if (!netdev) {
-        xtnet_core_err(dev, "error alloc_etherdev for net_device\n");
+    /* 申请用于存放xtenet设备的空间 */
+    ndev = alloc_etherdev(sizeof(struct xtenet_core_dev));
+    if (!ndev) {
+        xtenet_core_err(dev, "error alloc_etherdev for net_device\n");
         return -ENOMEM;
     }
 
+    /* 清除多播 */
+    ndev->flags &= ~IFF_MULTICAST;
+    ndev->features = NETIF_F_SG;
+    //ndev->netdev_ops = &xticenet_netdev_ops;
+    //ndev->ethtool_ops = &xticenet_ethtool_ops;
+    ndev->min_mtu = 64;
+	ndev->max_mtu = XTIC_NET_JUMBO_MTU;
+
     /* 将PCI设备与dev绑定 */
-    SET_NETDEV_DEV(netdev, &pdev->dev);
+    SET_NETDEV_DEV(ndev, &pdev->dev);
 
-    dev = netdev_priv(netdev);
-    dev->netdev = netdev;
+    dev = netdev_priv(ndev);
+    dev->ndev = ndev;
     dev->pdev = pdev;
+    dev->options = XTIC_OPTION_DEFAULTS;
+    dev->num_tx_queues = num_queues;
+    dev->num_rx_queues = num_queues;
+    dev->rx_bd_num = RX_BD_NUM_DEFAULT;
+    dev->tx_bd_num = TX_BD_NUM_DEFAULT;
 
-    err = xtnet_pci_init(dev, pdev, id);
+    err = xtenet_pci_init(dev, pdev, id);
     if (err) {
-		xtnet_core_err(dev, "xtnet_pci_init failed with error code %d\n", err);
+		xtenet_core_err(dev, "xtenet_pci_init failed with error code %d\n", err);
 		goto xt_pci_init_err;
 	}
 
-    err = xtnet_init_one(dev);
+    /* 设置校验和卸载，但如果未指定，则默认为关闭 */
+    dev->features = 0;
+
+    err = xtenet_init_one(dev);
 	if (err) {
-		xtnet_core_err(dev, "xtnet_init_one failed with error code %d\n", err);
+		xtenet_core_err(dev, "xtenet_init_one failed with error code %d\n", err);
 		goto xt_err_init_one;
 	}
     return 0;
 /* 错误处理 */
 xt_err_init_one:
-	xtnet_pci_close(dev);
+	xtenet_pci_close(dev);
 xt_pci_init_err:
 
     return err;
-
 }
 
-static void xtnet_remove(struct pci_dev *pdev)
+/* xtenet卸载函数 */
+static void xtenet_remove(struct pci_dev *pdev)
 {
-    struct xtnet_core_dev *dev  = pci_get_drvdata(pdev);
+    struct xtenet_core_dev *dev = pci_get_drvdata(pdev);
+    struct net_device *ndev = pci_get_drvdata(pdev);
+
     printk("%s\n",__func__);
     iounmap(dev->hw_addr);
-    xtnet_pci_close(dev);
-    free_netdev(dev->netdev);
+    xtenet_pci_close(dev);
+    free_netdev(ndev);
 }
 
-static struct pci_driver xtnet_driver = {
-    .name     = xtnet_driver_name,
-    .id_table = xtnet_pci_tbl,
-    .probe		= xtnet_probe,
-    .remove		= xtnet_remove,
+static struct pci_driver xtenet_driver = {
+    .name     = xtenet_driver_name,
+    .id_table   = xtenet_pci_tbl,
+    .probe      = xtenet_probe,
+    .remove     = xtenet_remove,
 };
 
-static int __init xtnet_init_module(void)
+static int __init xtenet_init_module(void)
 {
     int ret;
     printk("%s\n",__func__);
-    ret = pci_register_driver(&xtnet_driver);
+    ret = pci_register_driver(&xtenet_driver);
     printk("ret = 0x%x\n",ret);
     return ret;
 }
 
-static void __exit xtnet_exit_module(void)
+static void __exit xtenet_exit_module(void)
 {
     printk("%s\n",__func__);
-	pci_unregister_driver(&xtnet_driver);
+    pci_unregister_driver(&xtenet_driver);
 }
 
 /* 驱动注册与卸载入口 */
-module_init(xtnet_init_module);
-module_exit(xtnet_exit_module);
+module_init(xtenet_init_module);
+module_exit(xtenet_exit_module);
 
 MODULE_DESCRIPTION("XTIC 25Gbps Ethernet driver");
-MODULE_AUTHOR("XTIC Corporation,<xtnetic@xtnetic.com>");
+MODULE_AUTHOR("XTIC Corporation,<xtic@xtic.com>");
 MODULE_ALIAS("platform:xtnet");
 MODULE_LICENSE("GPL");
