@@ -3716,7 +3716,10 @@ static int set_dma_caps(struct pci_dev *pdev)
 {
     int err;
 
-    /* 设置PCI设备DMA位宽以及DMA内存是否连续 */
+    /* 设置PCI设备DMA位宽以及DMA内存是否连续
+    * 作用1：设置DMA支持64bit地址读写
+    * 作用2：设置一个名为coherent_dma_mask的标记
+    */
     err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
     if (err) {
         dev_warn(&pdev->dev, "Warning: couldn't set 64-bit PCI DMA mask\n");
@@ -3756,6 +3759,18 @@ static void release_bar(struct pci_dev *pdev)
     pci_release_regions(pdev);
 }
 
+static void info_pci(struct pci_dev *pdev)
+{
+    struct device *dev = &pdev->dev;
+    dev_info(dev, DRIVER_NAME " PCI probe");
+	dev_info(dev, " Vendor: 0x%04x", pdev->vendor);
+	dev_info(dev, " Device: 0x%04x", pdev->device);
+	dev_info(dev, " Subsystem vendor: 0x%04x", pdev->subsystem_vendor);
+	dev_info(dev, " Subsystem device: 0x%04x", pdev->subsystem_device);
+	dev_info(dev, " Class: 0x%06x", pdev->class);
+	dev_info(dev, " PCI ID: %04x:%02x:%02x.%d", pci_domain_nr(pdev->bus),
+			pdev->bus->number, PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn));
+}
 
 /*
  PCI初始化
@@ -3766,8 +3781,11 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     int err;
     int val;
     xt_printk("%s start!\n",__func__);
+
+    info_pci(pdev);
+
     /* 打开pci设备，成功返回0 */
-    err = pci_enable_device(pdev);
+    err = pci_enable_device_mem(pdev);
     if (err){
         xtenet_core_err(dev,"Cannot enable PCI device, aborting\n");
         return err;
@@ -3792,7 +3810,7 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     pci_read_config_dword(pdev, PCI_COMMAND, &val);
     pci_write_config_dword(pdev, PCI_COMMAND, val | PCI_COMMAND_MEMORY);
 
-    /* 设置PCI DMA功能 */
+    /* 设置PCI DMA功能参数 */
     err = set_dma_caps(pdev);
     if (err) {
         xtenet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
@@ -3806,8 +3824,8 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
         goto xt_err_clr_master;
     }
 
-    /* pci设备与xtenet网络设备绑定 */
-    pci_set_drvdata(dev->pdev, dev);
+    /* pci设备与网络设备绑定 */
+    pci_set_drvdata(pdev, dev);
     err = pci_save_state(pdev);
     if (err){
         xtenet_core_err(dev, "error pci_save_state\n");
@@ -3822,6 +3840,59 @@ xt_err_disable:
     // xtenet_pci_disable_device(dev);
 
     return err;
+}
+
+static irqreturn_t xtnet_pci_irq_handler(int irq, void *data)
+{
+    return IRQ_HANDLED;
+}
+
+static int xtnet_register_interrupt(struct pci_dev *pdev)
+{
+	int i, ret;
+    struct axienet_local *dev  = pci_get_drvdata(pdev);
+	/* Enable MSI */
+	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTNET_MAX_IRQ, PCI_IRQ_MSI);
+	if (dev->eth_irq < 0) {
+		// dev_err(dev, "Request for #%d msix vectors failed, returned %d\n", XTNET_MAX_IRQ, dev->eth_irq);
+		return ENOMEM;
+	}
+
+	// /* Register mailbox interrupt handler */
+    // for (k = 0; k < dev->eth_irq; k++) {
+    //     struct xtnet_irq *irq;
+
+    //     irq = kzalloc(sizeof(*irq), GFP_KERNEL);
+    //     if (!irq) {
+    //         ret = -ENOMEM;
+    //         goto fail;
+    //     }
+
+    //     // ATOMIC_INIT_NOTIFIER_HEAD(&irq->nh);
+
+    //     ret = pci_request_irq(pdev, k, xtnet_pci_irq_handler, NULL,
+    //             irq, "xtnet-%d", k);
+    //     if (ret < 0) {
+    //         kfree(irq);
+    //         ret = -ENOMEM;
+    //         dev_err(dev, "Failed to request IRQ %d", k);
+    //         goto fail;
+    //     }
+
+    //     irq->index = k;
+    //     irq->irqn = pci_irq_vector(pdev, k);
+    //     mdev->irq[k] = irq;
+    // }
+
+// 	/* Enable mailbox interrupt */
+// 	nic_enable_mbx_intr(nic);
+// 	return 0;
+
+// fail:
+	// dev_err(dev, "Request irq failed\n");
+	// nic_free_all_interrupts(nic);
+	pci_free_irq_vectors(pdev);
+	return ret;
 }
 
 static int xtenet_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
@@ -3847,6 +3918,8 @@ static int xtenet_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id
         xtenet_core_err(lp, "xtenet_pci_init failed with error code %d\n", err);
         goto xt_pci_init_err;
     }
+
+    xtnet_register_interrupt(pdev);
 
 xt_pci_init_err:
 

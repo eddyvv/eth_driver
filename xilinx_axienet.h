@@ -18,10 +18,16 @@
 #include <linux/of_platform.h>
 
 
+#define CONFIG_PCI
+
 #ifdef CONFIG_PCI
 #define PCI_VENDOR_ID_XTIC 0x1057
 #define PCI_DEVICE_ID_XTIC 0x0004
 #define BAR_0 0
+
+
+#define XTNET_MAX_IRQ 256
+
 #endif
 
 #define XTIC_DEBUG
@@ -725,7 +731,14 @@ enum axienet_tsn_ioctl {
 	SIOC_QBU_USER_OVERRIDE,
 	SIOC_QBU_STS,
 };
-
+#ifdef CONFIG_PCI
+struct xtnet_irq {
+	int index;
+	int irqn;
+	char name[16 + 3];
+	// struct atomic_notifier_head nh;
+};
+#endif
 /**
  * struct axienet_local - axienet private per device data
  * @ndev:	Pointer for net_device to which it will be attached.
@@ -804,6 +817,7 @@ struct axienet_local {
 #ifdef CONFIG_PCI
     /* 绑定的PCI设备 */
     struct pci_dev      *pdev;
+    struct mqnic_irq *irq[XTNET_MAX_IRQ];
 #endif
 	struct net_device *ndev;
 	struct device *dev;
