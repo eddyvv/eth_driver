@@ -1,5 +1,4 @@
 #include "xtic_enet.h"
-#include "xtic_enet_config.h"
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/of.h>
@@ -17,24 +16,175 @@ MODULE_DEVICE_TABLE(pci, xtenet_pci_tbl);
 
 
 
+static const struct xtnet_config axienet_10g25g_config = {
+	.mactype = XAXIENET_10G_25G,
+	// .setoptions = xxvenet_setoptions,
+	// .clk_init = xxvenet_clk_init,
+	// .tx_ptplen = XXV_TX_PTP_LEN,
+	// .ts_header_len = XXVENET_TS_HEADER_LEN,
+};
+
+/**
+ * axienet_dma_bd_init - Setup buffer descriptor rings for Axi DMA
+ * @ndev:	Pointer to the net_device structure
+ *
+ * Return: 0, on success -ENOMEM, on failure -EINVAL, on default return
+ *
+ * This function is called to initialize the Rx and Tx DMA descriptor
+ * rings. This initializes the descriptors with required default values
+ * and is called when Axi Ethernet driver reset is called.
+ */
+static int axienet_dma_bd_init(struct net_device *ndev)
+{
+	int i, ret = -EINVAL;
+	struct xtenet_core_dev *lp = netdev_priv(ndev);
+
+#ifdef CONFIG_AXIENET_HAS_MCDMA
+	for_each_tx_dma_queue(lp, i) {
+		ret = axienet_mcdma_tx_q_init(ndev, lp->dq[i]);
+		if (ret != 0)
+			break;
+	}
+#endif
+	for_each_rx_dma_queue(lp, i) {
+#ifdef CONFIG_AXIENET_HAS_MCDMA
+		ret = axienet_mcdma_rx_q_init(ndev, lp->dq[i]);
+#else
+		ret = axienet_dma_q_init(ndev, lp->dq[i]);
+#endif
+		if (ret != 0) {
+			netdev_err(ndev, "%s: Failed to init DMA buf\n", __func__);
+			break;
+		}
+	}
+
+	return ret;
+}
 
 
+void __axienet_device_reset(struct axienet_dma_q *q)
+{
+	u32 timeout;
+	/* Reset Axi DMA. This would reset Axi Ethernet core as well. The reset
+	 * process of Axi DMA takes a while to complete as all pending
+	 * commands/transfers will be flushed or completed during this
+	 * reset process.
+	 * Note that even though both TX and RX have their own reset register,
+	 * they both reset the entire DMA core, so only one needs to be used.
+	 */
+	axienet_dma_out32(q, XAXIDMA_TX_CR_OFFSET, XAXIDMA_CR_RESET_MASK);
+	timeout = DELAY_OF_ONE_MILLISEC;
+	while (axienet_dma_in32(q, XAXIDMA_TX_CR_OFFSET) &
+				XAXIDMA_CR_RESET_MASK) {
+		udelay(1);
+		if (--timeout == 0) {
+			netdev_err(q->lp->ndev, "%s: DMA reset timeout!\n",
+				   __func__);
+			break;
+		}
+	}
+}
 
+/**
+ * xtnet_device_reset - Reset and initialize the Axi Ethernet hardware.
+ * @ndev:	Pointer to the net_device structure
+ *
+ * This function is called to reset and initialize the Axi Ethernet core. This
+ * is typically called during initialization. It does a reset of the Axi DMA
+ * Rx/Tx channels and initializes the Axi DMA BDs. Since Axi DMA reset lines
+ * areconnected to Axi Ethernet reset lines, this in turn resets the Axi
+ * Ethernet core. No separate hardware reset is done for the Axi Ethernet
+ * core.
+ */
+static void xtnet_device_reset(struct net_device *ndev)
+{
+	u32 axienet_status;
+	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	u32 err, val;
+    struct axienet_dma_q *q;
+	u32 i;
 
+    if (lp->xtnet_config->mactype == XAXIENET_10G_25G) {
+		/* Reset the XXV MAC */
+		val = xtenet_ior(lp, XXV_GT_RESET_OFFSET);
+		val |= XXV_GT_RESET_MASK;
+		xtenet_iow(lp, XXV_GT_RESET_OFFSET, val);
+		/* Wait for 1ms for GT reset to complete as per spec */
+		mdelay(1);
+		val = xtenet_ior(lp, XXV_GT_RESET_OFFSET);
+		val &= ~XXV_GT_RESET_MASK;
+		xtenet_iow(lp, XXV_GT_RESET_OFFSET, val);
+	}
 
+    if (!lp->is_tsn) {
+        for_each_rx_dma_queue(lp, i) {
+            q = lp->dq[i];
+            __axienet_device_reset(q);
+        }
+    }
+
+    lp->max_frm_size = XAE_MAX_VLAN_FRAME_SIZE;
+
+    if (lp->xtnet_config->mactype == XAXIENET_10G_25G ||
+        lp->xtnet_config->mactype == XAXIENET_MRMAC) {
+        lp->options |= XAE_OPTION_FCS_STRIP;
+        lp->options |= XAE_OPTION_FCS_INSERT;
+    }
+
+    if ((ndev->mtu > XAE_MTU) && (ndev->mtu <= XAE_JUMBO_MTU)) {
+		lp->max_frm_size = ndev->mtu + VLAN_ETH_HLEN +
+					XAE_TRL_SIZE;
+		if (lp->max_frm_size <= lp->rxmem &&
+		    (lp->xtnet_config->mactype != XAXIENET_10G_25G &&
+		     lp->xtnet_config->mactype != XAXIENET_MRMAC))
+			lp->options |= XAE_OPTION_JUMBO;
+	}
+    if (!lp->is_tsn) {
+		if (axienet_dma_bd_init(ndev)) {
+			netdev_err(ndev, "%s: descriptor allocation failed\n",
+				   __func__);
+		}
+	}
+
+    if (lp->axienet_config->mactype == XAXIENET_10G_25G) {
+		/* Check for block lock bit got set or not
+		 * This ensures that 10G ethernet IP
+		 * is functioning normally or not.
+		 */
+		err = readl_poll_timeout(lp->regs + XXV_STATRX_BLKLCK_OFFSET,
+					 val, (val & XXV_RX_BLKLCK_MASK),
+					 10, DELAY_OF_ONE_MILLISEC);
+		if (err) {
+			netdev_err(ndev, "XXV MAC block lock not complete! Cross-check the MAC ref clock configuration\n");
+		}
+#ifdef CONFIG_XILINX_AXI_EMAC_HWTSTAMP
+		if (!lp->is_tsn) {
+			axienet_rxts_iow(lp, XAXIFIFO_TXTS_RDFR,
+					 XAXIFIFO_TXTS_RESET_MASK);
+			axienet_rxts_iow(lp, XAXIFIFO_TXTS_SRR,
+					 XAXIFIFO_TXTS_RESET_MASK);
+			axienet_txts_iow(lp, XAXIFIFO_TXTS_RDFR,
+					 XAXIFIFO_TXTS_RESET_MASK);
+			axienet_txts_iow(lp, XAXIFIFO_TXTS_SRR,
+					 XAXIFIFO_TXTS_RESET_MASK);
+		}
+#endif
+
+}
 
 
 static int xtenet_open(struct net_device *ndev)
 {
-    // int ret = 0, i = 0;
+    int ret = 0, i = 0;
+	struct xtenet_core_dev *lp = netdev_priv(ndev);
     xt_printk("%s start\n",__func__);
-
+    xtnet_device_reset(ndev);
 
     xt_printk("%s end\n",__func__);
     return 0;
 }
 
-static const struct net_device_ops xticenet_netdev_ops = {
+static const struct net_device_ops xtnet_netdev_ops = {
 // #ifdef CONFIG_XILINX_TSN
 //  .ndo_open = xticenet_tsn_open,
 // #else
@@ -75,7 +225,7 @@ static void xtenet_pci_close(struct xtenet_core_dev *dev)
     xtenet_pci_disable_device(dev);
 }
 
-/*
+/**
  * 设置DMA能力
  */
 static int set_dma_caps(struct pci_dev *pdev)
@@ -97,7 +247,7 @@ static int set_dma_caps(struct pci_dev *pdev)
     return err;
 }
 
-/*
+/**
  * 请求并分配bar
  */
 static int request_bar(struct pci_dev *pdev)
@@ -121,7 +271,7 @@ static void release_bar(struct pci_dev *pdev)
     pci_release_regions(pdev);
 }
 
-/*
+/**
  * 读取PCI核配置空间相应信息，配置PCI设备寄存器并读取
  */
 static void skel_get_configs(struct pci_dev *pdev)
@@ -149,9 +299,9 @@ static void skel_get_configs(struct pci_dev *pdev)
     xt_printk("reg_0 = 0x%x\n",reg_0);
 
 }
-/*
- PCI初始化
-*/
+/**
+ * PCI初始化
+ */
 static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
              const struct pci_device_id *id)
 {
@@ -191,9 +341,9 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
         xtenet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
     }
     /* 映射bar0至虚拟地址空间 */
-    dev->hw_addr = pci_ioremap_bar(pdev, BAR_0);
-    xt_printk("dev->hw_addr = 0x%x\n",(unsigned int)(long)dev->hw_addr);
-    if (!dev->hw_addr){
+    dev->regs = pci_ioremap_bar(pdev, BAR_0);
+    xt_printk("dev->regs = 0x%x\n",(unsigned int)(long)dev->regs);
+    if (!dev->regs){
         xtenet_core_err(dev, "Failed pci_ioremap_bar\n");
         goto xt_err_clr_master;
     }
@@ -210,7 +360,7 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
     return 0;
 
 // xt_err_ioremap:
-    iounmap(dev->hw_addr);
+    iounmap(dev->regs);
 /* 错误处理 */
 xt_err_clr_master:
     pci_clear_master(dev->pdev);
@@ -226,7 +376,7 @@ static irqreturn_t xtnet_irq_handler(int irqn, void *data)
     return IRQ_HANDLED;
 }
 
-/*
+/**
  * 释放中断处理程序
  */
 void xtnet_irq_deinit_pcie(struct xtenet_core_dev *dev)
@@ -246,7 +396,48 @@ void xtnet_irq_deinit_pcie(struct xtenet_core_dev *dev)
 	pci_free_irq_vectors(pdev);
 }
 
-/*
+/**
+ * NAPI轮询回调函数
+ * xtenet_rx_poll - Poll routine for rx packets (NAPI)
+ * @napi:	napi structure pointer
+ * @quota:	Max number of rx packets to be processed.
+ *
+ * This is the poll routine for rx part.
+ * It will process the packets maximux quota value.
+ *
+ * Return: number of packets received
+ */
+int xtenet_rx_poll(struct napi_struct *napi, int quota)
+{
+    int work_done = 0;
+
+    return work_done;
+}
+
+
+static const struct ethtool_ops xtnet_ethtool_ops = {
+	.supported_coalesce_params = ETHTOOL_COALESCE_MAX_FRAMES,
+// 	.get_drvinfo    = axienet_ethtools_get_drvinfo,
+// 	.get_regs_len   = axienet_ethtools_get_regs_len,
+// 	.get_regs       = axienet_ethtools_get_regs,
+// 	.get_link       = ethtool_op_get_link,
+// 	.get_ringparam	= axienet_ethtools_get_ringparam,
+// 	.set_ringparam  = axienet_ethtools_set_ringparam,
+// 	.get_pauseparam = axienet_ethtools_get_pauseparam,
+// 	.set_pauseparam = axienet_ethtools_set_pauseparam,
+// 	.get_coalesce   = axienet_ethtools_get_coalesce,
+// 	.set_coalesce   = axienet_ethtools_set_coalesce,
+// 	.get_sset_count	= axienet_ethtools_sset_count,
+// 	.get_ethtool_stats = axienet_ethtools_get_stats,
+// 	.get_strings = axienet_ethtools_strings,
+// #if defined(CONFIG_XILINX_AXI_EMAC_HWTSTAMP) || defined(CONFIG_XILINX_TSN_PTP)
+// 	.get_ts_info    = axienet_ethtools_get_ts_info,
+// #endif
+// 	.get_link_ksettings = phy_ethtool_get_link_ksettings,
+// 	.set_link_ksettings = phy_ethtool_set_link_ksettings,
+};
+
+/**
  * 初始化PCI MSI中断
  */
 static int xtnet_irq_init_pcie(struct xtenet_core_dev *dev)
@@ -296,7 +487,7 @@ fail:
 	return ret;
 }
 
-/*
+/**
  * 配置MAC地址
  */
 static void xtenet_set_mac_address(struct net_device *ndev)
@@ -310,7 +501,7 @@ static void xtenet_set_mac_address(struct net_device *ndev)
     /* don't block initialization here due to bad MAC address */
 	memcpy(ndev->dev_addr, dev->mac_addr, ndev->addr_len);
     /* 随机生成一个MAC地址 */
-    eth_hw_addr_random(ndev);
+    eth_regs_random(ndev);
 
     if (!is_valid_ether_addr(ndev->dev_addr))
 		xtenet_core_err(dev, "Invalid MAC Address\n");
@@ -337,8 +528,8 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     /* 清除多播 */
     ndev->flags &= ~IFF_MULTICAST;
     ndev->features = NETIF_F_SG;
-    ndev->netdev_ops = &xticenet_netdev_ops;
-    //ndev->ethtool_ops = &xticenet_ethtool_ops;
+    ndev->netdev_ops = &xtnet_netdev_ops;
+    ndev->ethtool_ops = &xtnet_ethtool_ops;
     ndev->min_mtu = 64;
     ndev->max_mtu = XTIC_NET_JUMBO_MTU;
 
@@ -349,6 +540,8 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     dev->ndev = ndev;
     dev->pdev = pdev;
     dev->options = XTIC_OPTION_DEFAULTS;
+
+    dev->xtnet_config = &axienet_10g25g_config;
 
     dev->num_tx_queues = num_queues;
     dev->num_rx_queues = num_queues;
@@ -388,7 +581,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     }
     // rxcsum = ;
     if(rxcsum){
-	/* 为了支持巨型框架，Axi以太网硬件必须具有
+	/** 为了支持巨型框架，Axi以太网硬件必须具有
 	 * 更大的Rx/Tx内存。通常，尺寸必须很大，以便
 	 * 我们可以启用巨型选项，并开始支持巨型框架。
 	 * 在这里，我们从以下位置检查为硬件中的Rx/Tx分配的内存
@@ -416,7 +609,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     }
 
 	dev->rxmem = RX_MEM;
-	/* phy_mode是可选的，但未指定时不应
+	/** phy_mode是可选的，但未指定时不应
 	 * 是一个可以改变驱动程序行为的值，因此将其设置为无效
 	 * 默认值。
 	 */
@@ -428,13 +621,15 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	/* Set default MRMAC rate */
 	dev->mrmac_rate = SPEED_10000;
 
+    netif_napi_add(ndev, &dev->napi[0], xtenet_rx_poll, XAXIENET_NAPI_WEIGHT);
+
     strncpy(ndev->name, pci_name(pdev), sizeof(ndev->name) - 1);
 
-    err = xtnet_irq_init_pcie(dev);
-    if (err) {
-		xtenet_core_err(dev, "Failed to set up interrupts");
-		// goto fail_init_irq;
-	}
+    // err = xtnet_irq_init_pcie(dev);
+    // if (err) {
+	// 	xtenet_core_err(dev, "Failed to set up interrupts");
+	// 	// goto fail_init_irq;
+	// }
 
     xtenet_set_mac_address(ndev);
 
@@ -466,7 +661,7 @@ static void xtenet_remove(struct pci_dev *pdev)
     struct xtenet_core_dev *dev = pci_get_drvdata(pdev);
 
     xt_printk("%s\n",__func__);
-    iounmap(dev->hw_addr);
+    iounmap(dev->regs);
     xtenet_pci_close(dev);
     free_netdev(dev->ndev);
 }
