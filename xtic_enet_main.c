@@ -26,7 +26,7 @@ MODULE_DEVICE_TABLE(pci, xtenet_pci_tbl);
 
 static int xtenet_open(struct net_device *ndev)
 {
-    int ret = 0, i = 0;
+    // int ret = 0, i = 0;
     xt_printk("%s start\n",__func__);
 
 
@@ -161,7 +161,7 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
 
     pci_select_bars(pdev, IORESOURCE_MEM);
     /* 打开pci设备，成功返回0 */
-    err = pci_enable_device(pdev);
+    err = pci_enable_device_mem(pdev);
     if (err){
         xtenet_core_err(dev,"Cannot enable PCI device, aborting\n");
         return err;
@@ -171,8 +171,8 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
     dev->bar_addr = pci_resource_start(pdev, 0);
     xt_printk("bar0 = 0x%llx\n", dev->bar_addr);
 
-    dev->range = pci_resource_end(pdev, 0) - dev->bar_addr + 1;
-    xt_printk("bar0 range = 0x%x\n", dev->range);
+    dev->bar_size = pci_resource_len(pdev, 0);
+    xt_printk("bar0 size = 0x%x\n", dev->bar_size);
     /* 请求PCI资源 */
     err = request_bar(pdev);
     if (err) {
@@ -192,7 +192,7 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
     }
     /* 映射bar0至虚拟地址空间 */
     dev->hw_addr = pci_ioremap_bar(pdev, BAR_0);
-    xt_printk("dev->hw_addr = 0x%x\n",dev->hw_addr);
+    xt_printk("dev->hw_addr = 0x%x\n",(unsigned int)(long)dev->hw_addr);
     if (!dev->hw_addr){
         xtenet_core_err(dev, "Failed pci_ioremap_bar\n");
         goto xt_err_clr_master;
@@ -209,7 +209,7 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
 
     return 0;
 
-xt_err_ioremap:
+// xt_err_ioremap:
     iounmap(dev->hw_addr);
 /* 错误处理 */
 xt_err_clr_master:
@@ -220,12 +220,100 @@ xt_err_disable:
     return err;
 }
 
-static int xtenet_init_one(struct xtenet_core_dev *dev)
+static irqreturn_t xtnet_irq_handler(int irqn, void *data)
 {
-    int err;
-    dev->state = XTNET_DEVICE_STATE_UP;
 
-    return err;
+    return IRQ_HANDLED;
+}
+
+/*
+ * 释放中断处理程序
+ */
+void xtnet_irq_deinit_pcie(struct xtenet_core_dev *dev)
+{
+	struct pci_dev *pdev = dev->pdev;
+	int k;
+
+	for (k = 0; k < XTNET_MAX_IRQ; k++) {
+		if (dev->irq[k]) {
+            free_irq(pci_irq_vector(pdev, k), dev->irq[k]);
+			// pci_free_irq(pdev, k, dev->irq[k]);
+			kfree(dev->irq[k]);
+			dev->irq[k] = NULL;
+		}
+	}
+
+	pci_free_irq_vectors(pdev);
+}
+
+/*
+ * 初始化PCI MSI中断
+ */
+static int xtnet_irq_init_pcie(struct xtenet_core_dev *dev)
+{
+    struct pci_dev *pdev = dev->pdev;
+    int ret = 0;
+    int k;
+    // Allocate MSI IRQs
+	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTNET_MAX_IRQ, PCI_IRQ_MSI);
+	if (dev->eth_irq < 0) {
+		xtenet_core_err(dev, "Failed to allocate IRQs");
+		return -ENOMEM;
+	}
+
+    // Set up interrupts
+	for (k = 0; k < dev->eth_irq; k++) {
+		struct xtnet_irq *irq;
+
+		irq = kzalloc(sizeof(*irq), GFP_KERNEL);
+		if (!irq) {
+			ret = -ENOMEM;
+			goto fail;
+		}
+
+		// ATOMIC_INIT_NOTIFIER_HEAD(&irq->nh);
+
+		// ret = pci_request_irq(pdev, k, xtnet_irq_handler, NULL, irq, "xtnet");
+        ret = request_irq(pci_irq_vector(pdev, k),
+			  xtnet_irq_handler, 0, "xtnet", dev);
+		if (ret < 0) {
+			kfree(irq);
+			ret = -ENOMEM;
+			xtenet_core_err(dev, "Failed to request IRQ %d", k);
+			goto fail;
+		}
+
+		irq->index = k;
+		irq->irqn = pci_irq_vector(pdev, k);
+		dev->irq[k] = irq;
+	}
+
+	xt_printk("Configured %d IRQs", dev->eth_irq);
+
+	return 0;
+fail:
+	xtnet_irq_deinit_pcie(dev);
+	return ret;
+}
+
+/*
+ * 配置MAC地址
+ */
+static void xtenet_set_mac_address(struct net_device *ndev)
+{
+    struct xtenet_core_dev *dev = netdev_priv(ndev);
+    // set MAC
+	ndev->addr_len = ETH_ALEN;
+
+    memset(dev->mac_addr, 0, ndev->addr_len);
+
+    /* don't block initialization here due to bad MAC address */
+	memcpy(ndev->dev_addr, dev->mac_addr, ndev->addr_len);
+    /* 随机生成一个MAC地址 */
+    eth_hw_addr_random(ndev);
+
+    if (!is_valid_ether_addr(ndev->dev_addr))
+		xtenet_core_err(dev, "Invalid MAC Address\n");
 }
 
 static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
@@ -249,7 +337,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     /* 清除多播 */
     ndev->flags &= ~IFF_MULTICAST;
     ndev->features = NETIF_F_SG;
-    //ndev->netdev_ops = &xticenet_netdev_ops;
+    ndev->netdev_ops = &xticenet_netdev_ops;
     //ndev->ethtool_ops = &xticenet_ethtool_ops;
     ndev->min_mtu = 64;
     ndev->max_mtu = XTIC_NET_JUMBO_MTU;
@@ -261,7 +349,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     dev->ndev = ndev;
     dev->pdev = pdev;
     dev->options = XTIC_OPTION_DEFAULTS;
-    
+
     dev->num_tx_queues = num_queues;
     dev->num_rx_queues = num_queues;
     dev->rx_bd_num = RX_BD_NUM_DEFAULT;
@@ -336,20 +424,36 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	/* Set default USXGMII rate */
 	dev->usxgmii_rate = SPEED_1000;
-	
+
 	/* Set default MRMAC rate */
 	dev->mrmac_rate = SPEED_10000;
-	
-	
-	
-    // err = xtenet_init_one(dev);
-    // if (err) {
-    //  xtenet_core_err(dev, "xtenet_init_one failed with error code %d\n", err);
-    //  goto xt_err_init_one;
-    // }
+
+    strncpy(ndev->name, pci_name(pdev), sizeof(ndev->name) - 1);
+
+    err = xtnet_irq_init_pcie(dev);
+    if (err) {
+		xtenet_core_err(dev, "Failed to set up interrupts");
+		// goto fail_init_irq;
+	}
+
+    xtenet_set_mac_address(ndev);
+
+    dev->coalesce_count_rx = XAXIDMA_DFT_RX_THRESHOLD;
+	dev->coalesce_count_tx = XAXIDMA_DFT_TX_THRESHOLD;
+
+    err = register_netdev(ndev);
+	if (err) {
+		xtenet_core_err(dev, "register_netdev() error (%i)\n", err);
+		// axienet_mdio_teardown(pdev);
+		// goto err_disable_clk;
+	}
+
+
+
+
     return 0;
 /* 错误处理 */
-xt_err_init_one:
+// xt_err_init_one:
     xtenet_pci_close(dev);
 xt_pci_init_err:
 

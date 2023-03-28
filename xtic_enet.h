@@ -35,7 +35,10 @@ char xtenet_driver_name[] = "xtenet_eth";
 
 
 
-
+#define XAXIDMA_DFT_TX_THRESHOLD	24
+#define XAXIDMA_DFT_TX_WAITBOUND	254
+#define XAXIDMA_DFT_RX_THRESHOLD	1
+#define XAXIDMA_DFT_RX_WAITBOUND	254
 
 /* Packet size info */
 #define XTIC_HDR_SIZE               14 /* Size of Ethernet header */
@@ -68,6 +71,8 @@ char xtenet_driver_name[] = "xtenet_eth";
 
 #define BAR_0 0
 
+#define XTNET_MAX_IRQ 256
+#define NODE_ADDRESS_SIZE 6
 enum xtenet_pci_status {
     XTNET_PCI_STATUS_DISABLED,
     XTNET_PCI_STATUS_ENABLED,
@@ -76,6 +81,13 @@ enum xtenet_pci_status {
 enum xtenet_device_state {
     XTNET_DEVICE_STATE_UP = 1,
     XTNET_DEVICE_STATE_INTERNAL_ERROR,
+};
+
+struct xtnet_irq {
+	int index;
+	int irqn;
+	char name[16 + 3];
+	// struct atomic_notifier_head nh;
 };
 
 /**
@@ -158,7 +170,7 @@ struct xtenet_core_dev {
     u16    num_rx_queues;   /* Number of RX DMA queues */
     bool    is_tsn;
     u32     options;        /* Current options word */
-
+    char name[16];
 	phy_interface_t phy_mode;
 
     u32 features;
@@ -167,11 +179,15 @@ struct xtenet_core_dev {
     u32 rx_bd_num;
 
 	u32 rxmem;
-	
-	
+    int eth_irq;
+    struct xtnet_irq *irq[XTNET_MAX_IRQ];
+
+    u8 mac_addr[NODE_ADDRESS_SIZE];
+    u32 coalesce_count_rx;
+	u32 coalesce_count_tx;
 	u32 usxgmii_rate;
 	u32 mrmac_rate;		/* MRMAC speed */
-	
+
     int csum_offload_on_tx_path;
     int csum_offload_on_rx_path;
     /* bar地址 */
@@ -179,7 +195,7 @@ struct xtenet_core_dev {
     /* 映射后的bar地址 */
     u8 __iomem      *hw_addr;
     /* 长度 */
-    int         range;
+    int         bar_size;
     /* xtenet设备状态 */
     enum xtenet_device_state     state;
     /* 绑定的PCI设备 */
