@@ -8,7 +8,7 @@
 #include <linux/if_vlan.h>
 #include "xtic_enet_config.h"
 
-char xtenet_driver_name[] = "xtenet_eth";
+char xtenet_driver_name[] = "xtenet_eth_";
 /* VENDOR_ID 0x10ee DEVICE_ID 0x903f */
 
 #define XTIC_DEBUG
@@ -25,9 +25,10 @@ char xtenet_driver_name[] = "xtenet_eth";
         __func__, __LINE__, current->pid,       \
            ##__VA_ARGS__)
 
-#define PCI_VENDOR_ID_XTIC 0x1057
-#define PCI_DEVICE_ID_XTIC 0x0004
-
+// #define PCI_VENDOR_ID_XTIC 0x1057
+// #define PCI_DEVICE_ID_XTIC 0x0004
+#define PCI_VENDOR_ID_XTIC 0x8086
+#define PCI_DEVICE_ID_XTIC 0x100f
 
 
 
@@ -531,6 +532,9 @@ struct xtenet_core_dev {
     struct net_device   *ndev;
     const struct xtnet_config *xtnet_config;
 };
+
+int __maybe_unused axienet_dma_q_init(struct net_device *ndev,
+				      struct axienet_dma_q *q);
 
 /**
  * axienet_dma_bdout - Memory mapped Axi DMA register Buffer Descriptor write.

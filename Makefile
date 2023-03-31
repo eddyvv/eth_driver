@@ -7,7 +7,7 @@ ccflags-y += -I$(shell pwd)
 
 obj-m := $(MODULE_NAME).o
 
-$(MODULE_NAME)-objs := $(MODULE_NAME).o xtic_enet_dma.o
+# $(MODULE_NAME)-objs := $(MODULE_NAME).o
 
 EXTRA_CFLAGS += -g
 CONFIG_DEBUG_INFO=y

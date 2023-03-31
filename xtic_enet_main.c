@@ -1,5 +1,6 @@
 #include "xtic_enet.h"
 #include <linux/module.h>
+#include <linux/ethtool.h>
 #include <linux/pci.h>
 #include <linux/of.h>
 //#include <linux/dev_printk.h>
@@ -96,91 +97,154 @@ void __axienet_device_reset(struct axienet_dma_q *q)
  * Ethernet core. No separate hardware reset is done for the Axi Ethernet
  * core.
  */
-static void xtnet_device_reset(struct net_device *ndev)
-{
-	u32 axienet_status;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
-	u32 err, val;
-    struct axienet_dma_q *q;
-	u32 i;
+// static void xtnet_device_reset(struct net_device *ndev)
+// {
+// 	u32 axienet_status;
+// 	struct xtenet_core_dev *lp = netdev_priv(ndev);
+// 	u32 err, val;
+//     struct axienet_dma_q *q;
+// 	u32 i;
 
-    if (lp->xtnet_config->mactype == XAXIENET_10G_25G) {
-		/* Reset the XXV MAC */
-		val = xtenet_ior(lp, XXV_GT_RESET_OFFSET);
-		val |= XXV_GT_RESET_MASK;
-		xtenet_iow(lp, XXV_GT_RESET_OFFSET, val);
-		/* Wait for 1ms for GT reset to complete as per spec */
-		mdelay(1);
-		val = xtenet_ior(lp, XXV_GT_RESET_OFFSET);
-		val &= ~XXV_GT_RESET_MASK;
-		xtenet_iow(lp, XXV_GT_RESET_OFFSET, val);
-	}
+//     if (lp->xtnet_config->mactype == XAXIENET_10G_25G) {
+// 		/* Reset the XXV MAC */
+// 		val = xtenet_ior(lp, XXV_GT_RESET_OFFSET);
+// 		val |= XXV_GT_RESET_MASK;
+// 		xtenet_iow(lp, XXV_GT_RESET_OFFSET, val);
+// 		/* Wait for 1ms for GT reset to complete as per spec */
+// 		mdelay(1);
+// 		val = xtenet_ior(lp, XXV_GT_RESET_OFFSET);
+// 		val &= ~XXV_GT_RESET_MASK;
+// 		xtenet_iow(lp, XXV_GT_RESET_OFFSET, val);
+// 	}
 
-    if (!lp->is_tsn) {
-        for_each_rx_dma_queue(lp, i) {
-            q = lp->dq[i];
-            __axienet_device_reset(q);
-        }
-    }
+//     if (!lp->is_tsn) {
+//         for_each_rx_dma_queue(lp, i) {
+//             q = lp->dq[i];
+//             __axienet_device_reset(q);
+//         }
+//     }
 
-    lp->max_frm_size = XAE_MAX_VLAN_FRAME_SIZE;
+//     lp->max_frm_size = XAE_MAX_VLAN_FRAME_SIZE;
 
-    if (lp->xtnet_config->mactype == XAXIENET_10G_25G ||
-        lp->xtnet_config->mactype == XAXIENET_MRMAC) {
-        lp->options |= XAE_OPTION_FCS_STRIP;
-        lp->options |= XAE_OPTION_FCS_INSERT;
-    }
+//     if (lp->xtnet_config->mactype == XAXIENET_10G_25G ||
+//         lp->xtnet_config->mactype == XAXIENET_MRMAC) {
+//         lp->options |= XAE_OPTION_FCS_STRIP;
+//         lp->options |= XAE_OPTION_FCS_INSERT;
+//     }
 
-    if ((ndev->mtu > XAE_MTU) && (ndev->mtu <= XAE_JUMBO_MTU)) {
-		lp->max_frm_size = ndev->mtu + VLAN_ETH_HLEN +
-					XAE_TRL_SIZE;
-		if (lp->max_frm_size <= lp->rxmem &&
-		    (lp->xtnet_config->mactype != XAXIENET_10G_25G &&
-		     lp->xtnet_config->mactype != XAXIENET_MRMAC))
-			lp->options |= XAE_OPTION_JUMBO;
-	}
-    if (!lp->is_tsn) {
-		if (axienet_dma_bd_init(ndev)) {
-			netdev_err(ndev, "%s: descriptor allocation failed\n",
-				   __func__);
-		}
-	}
+//     if ((ndev->mtu > XAE_MTU) && (ndev->mtu <= XAE_JUMBO_MTU)) {
+// 		lp->max_frm_size = ndev->mtu + VLAN_ETH_HLEN +
+// 					XAE_TRL_SIZE;
+// 		if (lp->max_frm_size <= lp->rxmem &&
+// 		    (lp->xtnet_config->mactype != XAXIENET_10G_25G &&
+// 		     lp->xtnet_config->mactype != XAXIENET_MRMAC))
+// 			lp->options |= XAE_OPTION_JUMBO;
+// 	}
+//     if (!lp->is_tsn) {
+// 		if (axienet_dma_bd_init(ndev)) {
+// 			netdev_err(ndev, "%s: descriptor allocation failed\n",
+// 				   __func__);
+// 		}
+// 	}
 
-    if (lp->axienet_config->mactype == XAXIENET_10G_25G) {
-		/* Check for block lock bit got set or not
-		 * This ensures that 10G ethernet IP
-		 * is functioning normally or not.
-		 */
-		err = readl_poll_timeout(lp->regs + XXV_STATRX_BLKLCK_OFFSET,
-					 val, (val & XXV_RX_BLKLCK_MASK),
-					 10, DELAY_OF_ONE_MILLISEC);
-		if (err) {
-			netdev_err(ndev, "XXV MAC block lock not complete! Cross-check the MAC ref clock configuration\n");
-		}
-#ifdef CONFIG_XILINX_AXI_EMAC_HWTSTAMP
-		if (!lp->is_tsn) {
-			axienet_rxts_iow(lp, XAXIFIFO_TXTS_RDFR,
-					 XAXIFIFO_TXTS_RESET_MASK);
-			axienet_rxts_iow(lp, XAXIFIFO_TXTS_SRR,
-					 XAXIFIFO_TXTS_RESET_MASK);
-			axienet_txts_iow(lp, XAXIFIFO_TXTS_RDFR,
-					 XAXIFIFO_TXTS_RESET_MASK);
-			axienet_txts_iow(lp, XAXIFIFO_TXTS_SRR,
-					 XAXIFIFO_TXTS_RESET_MASK);
-		}
-#endif
+//     if (lp->xtnet_config->mactype == XAXIENET_10G_25G) {
+// 		/* Check for block lock bit got set or not
+// 		 * This ensures that 10G ethernet IP
+// 		 * is functioning normally or not.
+// 		 */
+// 		err = readl_poll_timeout(lp->regs + XXV_STATRX_BLKLCK_OFFSET,
+// 					 val, (val & XXV_RX_BLKLCK_MASK),
+// 					 10, DELAY_OF_ONE_MILLISEC);
+// 		if (err) {
+// 			netdev_err(ndev, "XXV MAC block lock not complete! Cross-check the MAC ref clock configuration\n");
+// 		}
+// #ifdef CONFIG_XILINX_AXI_EMAC_HWTSTAMP
+// 		if (!lp->is_tsn) {
+// 			axienet_rxts_iow(lp, XAXIFIFO_TXTS_RDFR,
+// 					 XAXIFIFO_TXTS_RESET_MASK);
+// 			axienet_rxts_iow(lp, XAXIFIFO_TXTS_SRR,
+// 					 XAXIFIFO_TXTS_RESET_MASK);
+// 			axienet_txts_iow(lp, XAXIFIFO_TXTS_RDFR,
+// 					 XAXIFIFO_TXTS_RESET_MASK);
+// 			axienet_txts_iow(lp, XAXIFIFO_TXTS_SRR,
+// 					 XAXIFIFO_TXTS_RESET_MASK);
+// 		}
+// #endif
+//     }
 
-}
+// #ifdef CONFIG_XILINX_AXI_EMAC_HWTSTAMP
+// 	if (lp->xtnet_config->mactype == XAXIENET_MRMAC) {
+// 		axienet_rxts_iow(lp, XAXIFIFO_TXTS_RDFR,
+// 				 XAXIFIFO_TXTS_RESET_MASK);
+// 		axienet_rxts_iow(lp, XAXIFIFO_TXTS_SRR,
+// 				 XAXIFIFO_TXTS_RESET_MASK);
+// 		axienet_txts_iow(lp, XAXIFIFO_TXTS_RDFR,
+// 				 XAXIFIFO_TXTS_RESET_MASK);
+// 		axienet_txts_iow(lp, XAXIFIFO_TXTS_SRR,
+// 				 XAXIFIFO_TXTS_RESET_MASK);
+// 	}
+// #endif
 
+//     if (lp->xtnet_config->mactype == XAXIENET_10G_25G ||
+// 	    lp->xtnet_config->mactype == XAXIENET_MRMAC) {
+// 		lp->options |= XAE_OPTION_FCS_STRIP;
+// 		lp->options |= XAE_OPTION_FCS_INSERT;
+// 	}
+//     lp->xtnet_config->setoptions(ndev, lp->options &
+// 				       ~(XAE_OPTION_TXEN | XAE_OPTION_RXEN));
+
+// 	axienet_set_mac_address(ndev, NULL);
+// 	axienet_set_multicast_list(ndev);
+// 	lp->xtnet_config->setoptions(ndev, lp->options);
+
+// 	netif_trans_update(ndev);
+// }
 
 static int xtenet_open(struct net_device *ndev)
 {
     int ret = 0, i = 0;
 	struct xtenet_core_dev *lp = netdev_priv(ndev);
     xt_printk("%s start\n",__func__);
-    xtnet_device_reset(ndev);
+    // xtnet_device_reset(ndev);
 
     xt_printk("%s end\n",__func__);
+    return 0;
+}
+
+static int xticenet_stop(struct net_device *ndev)
+{
+
+    return 0;
+}
+
+static int xticenet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
+{
+
+    return 0;
+}
+
+
+static int netdev_set_mac_address(struct net_device *ndev, void *p)
+{
+
+    return 0;
+}
+
+void axienet_set_multicast_list(struct net_device *ndev)
+{
+
+
+}
+
+static int axienet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+{
+
+    return 0;
+}
+
+static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
+{
+
     return 0;
 }
 
@@ -190,15 +254,15 @@ static const struct net_device_ops xtnet_netdev_ops = {
 // #else
     .ndo_open = xtenet_open,
 // #endif
-//  .ndo_stop = xticenet_stop,
+ .ndo_stop = xticenet_stop,
 // #ifdef CONFIG_XILINX_TSN
 //  .ndo_start_xmit = xticenet_tsn_xmit,
 // #else
-//  .ndo_start_xmit = xticenet_start_xmit,
+ .ndo_start_xmit = xticenet_start_xmit,
 // #endif
-//  .ndo_change_mtu = xticenet_change_mtu,
+ .ndo_change_mtu = xticenet_change_mtu,
 //  .ndo_set_mac_address = netdev_set_mac_address,
-//  .ndo_validate_addr = eth_validate_addr,
+ .ndo_validate_addr = eth_validate_addr,
 //  .ndo_set_rx_mode = xticenet_set_multicast_list,
 //  .ndo_do_ioctl = xticenet_ioctl,
 // #ifdef CONFIG_NET_POLL_CONTROLLER
@@ -414,9 +478,28 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
     return work_done;
 }
 
+/**
+ * axienet_ethtools_set_coalesce - Set DMA interrupt coalescing count.
+ * @ndev:	Pointer to net_device structure
+ * @ecoalesce:	Pointer to ethtool_coalesce structure
+ *
+ * This implements ethtool command for setting the DMA interrupt coalescing
+ * count on Tx and Rx paths. Issue "ethtool -C ethX rx-frames 5" under linux
+ * prompt to execute this function.
+ *
+ * Return: 0, on success, Non-zero error value on failure.
+ */
+static int axienet_ethtools_set_coalesce(struct net_device *ndec,
+                                struct ethtool_coalesce *ecoalesce,
+                                struct kernel_ethtool_coalesce *kecoalesce,
+                                struct netlink_ext_ack *netlink_ext_ack)
+{
+
+	return 0;
+}
 
 static const struct ethtool_ops xtnet_ethtool_ops = {
-	.supported_coalesce_params = ETHTOOL_COALESCE_MAX_FRAMES,
+    .supported_coalesce_params = ETHTOOL_COALESCE_MAX_FRAMES,
 // 	.get_drvinfo    = axienet_ethtools_get_drvinfo,
 // 	.get_regs_len   = axienet_ethtools_get_regs_len,
 // 	.get_regs       = axienet_ethtools_get_regs,
@@ -426,7 +509,7 @@ static const struct ethtool_ops xtnet_ethtool_ops = {
 // 	.get_pauseparam = axienet_ethtools_get_pauseparam,
 // 	.set_pauseparam = axienet_ethtools_set_pauseparam,
 // 	.get_coalesce   = axienet_ethtools_get_coalesce,
-// 	.set_coalesce   = axienet_ethtools_set_coalesce,
+	// .set_coalesce   = axienet_ethtools_set_coalesce,
 // 	.get_sset_count	= axienet_ethtools_sset_count,
 // 	.get_ethtool_stats = axienet_ethtools_get_stats,
 // 	.get_strings = axienet_ethtools_strings,
@@ -446,7 +529,7 @@ static int xtnet_irq_init_pcie(struct xtenet_core_dev *dev)
     int ret = 0;
     int k;
     // Allocate MSI IRQs
-	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTNET_MAX_IRQ, PCI_IRQ_MSI);
+	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSIX);
 	if (dev->eth_irq < 0) {
 		xtenet_core_err(dev, "Failed to allocate IRQs");
 		return -ENOMEM;
@@ -501,7 +584,7 @@ static void xtenet_set_mac_address(struct net_device *ndev)
     /* don't block initialization here due to bad MAC address */
 	memcpy(ndev->dev_addr, dev->mac_addr, ndev->addr_len);
     /* 随机生成一个MAC地址 */
-    eth_regs_random(ndev);
+    eth_hw_addr_random(ndev);
 
     if (!is_valid_ether_addr(ndev->dev_addr))
 		xtenet_core_err(dev, "Invalid MAC Address\n");
@@ -623,19 +706,20 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
     netif_napi_add(ndev, &dev->napi[0], xtenet_rx_poll, XAXIENET_NAPI_WEIGHT);
 
-    strncpy(ndev->name, pci_name(pdev), sizeof(ndev->name) - 1);
+    // strncpy(ndev->name, pci_name(pdev), sizeof(ndev->name) - 1);
 
-    // err = xtnet_irq_init_pcie(dev);
-    // if (err) {
-	// 	xtenet_core_err(dev, "Failed to set up interrupts");
-	// 	// goto fail_init_irq;
-	// }
+    //err = xtnet_irq_init_pcie(dev);
+    //if (err) {
+	//	xtenet_core_err(dev, "Failed to set up interrupts err (%i)\n", err);
+	//	// goto fail_init_irq;
+	//}
 
     xtenet_set_mac_address(ndev);
 
     dev->coalesce_count_rx = XAXIDMA_DFT_RX_THRESHOLD;
 	dev->coalesce_count_tx = XAXIDMA_DFT_TX_THRESHOLD;
 
+    // strcpy(ndev->name, "eth%d");
     err = register_netdev(ndev);
 	if (err) {
 		xtenet_core_err(dev, "register_netdev() error (%i)\n", err);
@@ -694,5 +778,5 @@ module_exit(xtenet_exit_module);
 
 MODULE_DESCRIPTION("XTIC 25Gbps Ethernet driver");
 MODULE_AUTHOR("XTIC Corporation,<xtic@xtic.com>");
-MODULE_ALIAS("platform:xtnet");
+MODULE_ALIAS("pci_driver:xtnet");
 MODULE_LICENSE("GPL");
