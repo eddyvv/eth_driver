@@ -213,12 +213,17 @@ static int xtenet_open(struct net_device *ndev)
 
 static int xticenet_stop(struct net_device *ndev)
 {
+    xt_printk("%s start\n",__func__);
 
+    xt_printk("%s end\n",__func__);
     return 0;
 }
 
 static int xticenet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
+    xt_printk("%s start\n",__func__);
+
+    xt_printk("%s end\n",__func__);
 
     return 0;
 }
@@ -226,25 +231,33 @@ static int xticenet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 static int netdev_set_mac_address(struct net_device *ndev, void *p)
 {
+    xt_printk("%s start\n",__func__);
 
+    xt_printk("%s end\n",__func__);
     return 0;
 }
 
 void axienet_set_multicast_list(struct net_device *ndev)
 {
+    xt_printk("%s start\n",__func__);
 
+    xt_printk("%s end\n",__func__);
 
 }
 
 static int axienet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
+    xt_printk("%s start\n",__func__);
 
+    xt_printk("%s end\n",__func__);
     return 0;
 }
 
 static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
 {
+    xt_printk("%s start\n",__func__);
 
+    xt_printk("%s end\n",__func__);
     return 0;
 }
 
@@ -274,7 +287,6 @@ static const struct net_device_ops xtnet_netdev_ops = {
 static void xtenet_pci_disable_device(struct xtenet_core_dev *dev)
 {
     struct pci_dev *pdev = dev->pdev;
-
     if (dev->pci_status == XTNET_PCI_STATUS_ENABLED) {
         pci_disable_device(pdev);
         dev->pci_status = XTNET_PCI_STATUS_DISABLED;
@@ -283,9 +295,8 @@ static void xtenet_pci_disable_device(struct xtenet_core_dev *dev)
 
 static void xtenet_pci_close(struct xtenet_core_dev *dev)
 {
-    // iounmap(dev->iseg);
-    pci_clear_master(dev->pdev);
     release_bar(dev->pdev);
+    pci_clear_master(dev->pdev);
     xtenet_pci_disable_device(dev);
 }
 
@@ -720,6 +731,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	dev->coalesce_count_tx = XAXIDMA_DFT_TX_THRESHOLD;
 
     // strcpy(ndev->name, "eth%d");
+    xt_printk("register_netdev start\n",__func__);
     err = register_netdev(ndev);
 	if (err) {
 		xtenet_core_err(dev, "register_netdev() error (%i)\n", err);
@@ -743,11 +755,14 @@ xt_pci_init_err:
 static void xtenet_remove(struct pci_dev *pdev)
 {
     struct xtenet_core_dev *dev = pci_get_drvdata(pdev);
+    xt_printk("%s start\n",__func__);
 
-    xt_printk("%s\n",__func__);
+    unregister_netdev(dev->ndev);
     iounmap(dev->regs);
     xtenet_pci_close(dev);
     free_netdev(dev->ndev);
+
+    xt_printk("%s end\n",__func__);
 }
 
 static struct pci_driver xtenet_driver = {
