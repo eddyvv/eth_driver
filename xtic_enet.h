@@ -281,7 +281,7 @@ struct xtnet_irq {
 	int index;
 	int irqn;
 	char name[16 + 3];
-	// struct atomic_notifier_head nh;
+	struct atomic_notifier_head nh;
 };
 
 /**

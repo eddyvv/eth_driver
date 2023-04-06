@@ -457,17 +457,18 @@ static irqreturn_t xtnet_irq_handler(int irqn, void *data)
 void xtnet_irq_deinit_pcie(struct xtenet_core_dev *dev)
 {
 	struct pci_dev *pdev = dev->pdev;
+    struct net_device *ndev = dev->ndev;
 	int k;
 
-	for (k = 0; k < XTNET_MAX_IRQ; k++) {
+	 for (k = 0; k < 1; k++)
+    {
 		if (dev->irq[k]) {
-            free_irq(pci_irq_vector(pdev, k), dev->irq[k]);
+            free_irq(pdev->irq, ndev);
 			// pci_free_irq(pdev, k, dev->irq[k]);
 			kfree(dev->irq[k]);
 			dev->irq[k] = NULL;
 		}
 	}
-
 	pci_free_irq_vectors(pdev);
 }
 
@@ -537,17 +538,21 @@ static const struct ethtool_ops xtnet_ethtool_ops = {
 static int xtnet_irq_init_pcie(struct xtenet_core_dev *dev)
 {
     struct pci_dev *pdev = dev->pdev;
+    struct net_device *ndev = dev->ndev;
     int ret = 0;
+    u8 irq_;
     int k;
     // Allocate MSI IRQs
-	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSIX);
-	if (dev->eth_irq < 0) {
-		xtenet_core_err(dev, "Failed to allocate IRQs");
-		return -ENOMEM;
-	}
+	// dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSIX);
+	// if (dev->eth_irq < 0) {
+	// 	xtenet_core_err(dev, "Failed to allocate IRQs");
+	// 	return -ENOMEM;
+	// }
 
     // Set up interrupts
-	for (k = 0; k < dev->eth_irq; k++) {
+	 //for (k = 0; k < dev->eth_irq; k++)
+     for (k = 0; k < 1; k++)
+    {
 		struct xtnet_irq *irq;
 
 		irq = kzalloc(sizeof(*irq), GFP_KERNEL);
@@ -556,11 +561,10 @@ static int xtnet_irq_init_pcie(struct xtenet_core_dev *dev)
 			goto fail;
 		}
 
-		// ATOMIC_INIT_NOTIFIER_HEAD(&irq->nh);
+		ATOMIC_INIT_NOTIFIER_HEAD(&irq->nh);
 
 		// ret = pci_request_irq(pdev, k, xtnet_irq_handler, NULL, irq, "xtnet");
-        ret = request_irq(pci_irq_vector(pdev, k),
-			  xtnet_irq_handler, 0, "xtnet", dev);
+        ret = request_irq(pci_irq_vector(pdev, k), xtnet_irq_handler, 0, "xtnet", ndev);
 		if (ret < 0) {
 			kfree(irq);
 			ret = -ENOMEM;
@@ -572,9 +576,6 @@ static int xtnet_irq_init_pcie(struct xtenet_core_dev *dev)
 		irq->irqn = pci_irq_vector(pdev, k);
 		dev->irq[k] = irq;
 	}
-
-	xt_printk("Configured %d IRQs", dev->eth_irq);
-
 	return 0;
 fail:
 	xtnet_irq_deinit_pcie(dev);
@@ -717,21 +718,18 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
     netif_napi_add(ndev, &dev->napi[0], xtenet_rx_poll, XAXIENET_NAPI_WEIGHT);
 
-    // strncpy(ndev->name, pci_name(pdev), sizeof(ndev->name) - 1);
-
-    //err = xtnet_irq_init_pcie(dev);
-    //if (err) {
-	//	xtenet_core_err(dev, "Failed to set up interrupts err (%i)\n", err);
-	//	// goto fail_init_irq;
-	//}
+    err = xtnet_irq_init_pcie(dev);
+    if (err) {
+		xtenet_core_err(dev, "Failed to set up interrupts err (%i)\n", err);
+		// goto fail_init_irq;
+	}
 
     xtenet_set_mac_address(ndev);
 
     dev->coalesce_count_rx = XAXIDMA_DFT_RX_THRESHOLD;
 	dev->coalesce_count_tx = XAXIDMA_DFT_TX_THRESHOLD;
 
-    // strcpy(ndev->name, "eth%d");
-    xt_printk("register_netdev start\n",__func__);
+    strcpy(ndev->name, "eth%d");
     err = register_netdev(ndev);
 	if (err) {
 		xtenet_core_err(dev, "register_netdev() error (%i)\n", err);
@@ -760,6 +758,7 @@ static void xtenet_remove(struct pci_dev *pdev)
     unregister_netdev(dev->ndev);
     iounmap(dev->regs);
     xtenet_pci_close(dev);
+    xtnet_irq_deinit_pcie(dev);
     free_netdev(dev->ndev);
 
     xt_printk("%s end\n",__func__);
