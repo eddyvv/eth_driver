@@ -158,6 +158,26 @@ char xtenet_driver_name[] = "xtenet_eth_";
                  XTIC_OPTION_FLOW_CONTROL | \
                  XTIC_OPTION_RXEN)
 
+
+/* USXGMII Register Mask Definitions  */
+#define USXGMII_AN_EN		BIT(5)
+#define USXGMII_AN_RESET	BIT(6)
+#define USXGMII_AN_RESTART	BIT(7)
+#define USXGMII_EN		BIT(16)
+#define USXGMII_RATE_MASK	0x0E000700
+#define USXGMII_RATE_1G		0x04000200
+#define USXGMII_RATE_2G5	0x08000400
+#define USXGMII_RATE_10M	0x0
+#define USXGMII_RATE_100M	0x02000100
+#define USXGMII_RATE_5G		0x0A000500
+#define USXGMII_RATE_10G	0x06000300
+#define USXGMII_FD		BIT(28)
+#define USXGMII_LINK_STS	BIT(31)
+
+/* USXGMII AN STS register mask definitions */
+#define USXGMII_AN_STS_COMP_MASK	BIT(16)
+
+
 /* Axi DMA Register definitions */
 
 #define XAXIDMA_TX_CR_OFFSET	0x00000000 /* Channel control */
@@ -275,6 +295,12 @@ struct xtnet_config {
 	// 		struct clk **dclk);
 	u32 tx_ptplen;
 	u8 ts_header_len;
+};
+
+struct xxvenet_option {
+	u32 opt;
+	u32 reg;
+	u32 m_or;
 };
 
 struct xtnet_irq {
@@ -497,6 +523,8 @@ struct xtenet_core_dev {
 
     u16 tx_bd_num;
     u32 rx_bd_num;
+
+    bool eth_hasnobuf;
 
 	u32 rxmem;
     u32 max_frm_size;
