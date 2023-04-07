@@ -682,11 +682,7 @@ static int xtnet_irq_init_pcie(struct xtenet_core_dev *dev)
     u8 irq_;
     int k;
     // Allocate MSI IRQs
-<<<<<<< HEAD
 	// dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI | PCI_IRQ_MSIX);
-=======
-	// dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSIX);
->>>>>>> aeead3619f79bd56743ff98ba2f87f0dc586e484
 	// if (dev->eth_irq < 0) {
 	// 	xtenet_core_err(dev, "Failed to allocate IRQs");
 	// 	return -ENOMEM;
