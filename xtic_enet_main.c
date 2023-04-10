@@ -403,8 +403,17 @@ static int axienet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
 static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
 {
-    xt_printk("%s start\n",__func__);
+    struct xtenet_core_dev *lp = netdev_priv(ndev);
 
+    xt_printk("%s start\n",__func__);
+	if (netif_running(ndev))
+		return -EBUSY;
+
+	if ((new_mtu + VLAN_ETH_HLEN +
+		XAE_TRL_SIZE) > lp->rxmem)
+		return -EINVAL;
+
+	ndev->mtu = new_mtu;
     xt_printk("%s end\n",__func__);
     return 0;
 }
