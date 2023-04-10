@@ -19,6 +19,7 @@ kernel_modules:
 	sudo cp $(MODULE_NAME).ko /lib/modules/$(shell uname -r)/kernel/drivers
 
 install:
+	sudo rmmod e1000
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) modules
 	sudo cp ./$(MODULE_NAME).ko /lib/modules/$(shell uname -r)/kernel/drivers
@@ -28,5 +29,6 @@ clean:
 	sudo rm /lib/modules/$(shell uname -r)/kernel/drivers/$(MODULE_NAME).ko
 	rm -rf $(BUILD_DIR)
 	sudo rmmod $(MODULE_NAME)
+	sudo insmod /lib/modules/5.15.0-60-generic/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
 
 

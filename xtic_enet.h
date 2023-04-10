@@ -8,7 +8,7 @@
 #include <linux/if_vlan.h>
 #include "xtic_enet_config.h"
 
-char xtenet_driver_name[] = "xtenet_eth_";
+char xtenet_driver_name[] = "xtenet_eth";
 /* VENDOR_ID 0x10ee DEVICE_ID 0x903f */
 
 #define XTIC_DEBUG
