@@ -85,25 +85,6 @@ static int axienet_dma_bd_init(struct net_device *ndev)
 	int i, ret = -EINVAL;
 	struct xtenet_core_dev *lp = netdev_priv(ndev);
 
-#ifdef CONFIG_AXIENET_HAS_MCDMA
-	for_each_tx_dma_queue(lp, i) {
-		ret = axienet_mcdma_tx_q_init(ndev, lp->dq[i]);
-		if (ret != 0)
-			break;
-	}
-#endif
-// 	for_each_rx_dma_queue(lp, i) {
-// #ifdef CONFIG_AXIENET_HAS_MCDMA
-// 		ret = axienet_mcdma_rx_q_init(ndev, lp->dq[i]);
-// #else
-// 		// ret = axienet_dma_q_init(ndev, lp->dq[i]);
-// #endif
-// 		if (ret != 0) {
-// 			netdev_err(ndev, "%s: Failed to init DMA buf\n", __func__);
-// 			break;
-// 		}
-// 	}
-
 	return ret;
 }
 
@@ -428,26 +409,51 @@ static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
     return 0;
 }
 
+#ifdef CONFIG_NET_POLL_CONTROLLER
+/**
+ * xticenet_poll_controller - Axi Ethernet poll mechanism.
+ * @ndev:	Pointer to net_device structure
+ *
+ * This implements Rx/Tx ISR poll mechanisms. The interrupts are disabled prior
+ * to polling the ISRs and are enabled back after the polling is done.
+ */
+static void xticenet_poll_controller(struct net_device *ndev)
+{
+
+    return;
+}
+#endif
+
+/* Ioctl MII Interface */
+static int xticenet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+{
+    if (!netif_running(dev))
+        return -EINVAL;
+
+    switch (cmd) {
+    case SIOCGMIIPHY:
+    case SIOCGMIIREG:
+    case SIOCSMIIREG:
+        if (!dev->phydev)
+            return -EOPNOTSUPP;
+        return phy_mii_ioctl(dev->phydev, rq, cmd);
+
+    default:
+		return -EOPNOTSUPP;
+	}
+}
+
 static const struct net_device_ops xtnet_netdev_ops = {
-// #ifdef CONFIG_XILINX_TSN
-//  .ndo_open = xticenet_tsn_open,
-// #else
     .ndo_open = xtenet_open,
-// #endif
- .ndo_stop = xticenet_stop,
-// #ifdef CONFIG_XILINX_TSN
-//  .ndo_start_xmit = xticenet_tsn_xmit,
-// #else
- .ndo_start_xmit = xticenet_start_xmit,
-// #endif
- .ndo_change_mtu = xticenet_change_mtu,
- .ndo_set_mac_address = netdev_set_mac_address,
- .ndo_validate_addr = eth_validate_addr,
-//  .ndo_set_rx_mode = xticenet_set_multicast_list,
-//  .ndo_do_ioctl = xticenet_ioctl,
-// #ifdef CONFIG_NET_POLL_CONTROLLER
-//  .ndo_poll_controller = xticenet_poll_controller,
-// #endif
+    .ndo_stop = xticenet_stop,
+    .ndo_start_xmit = xticenet_start_xmit,
+    .ndo_change_mtu = xticenet_change_mtu,
+    .ndo_set_mac_address = netdev_set_mac_address,
+    .ndo_validate_addr = eth_validate_addr,
+    .ndo_do_ioctl = xticenet_ioctl,
+#ifdef CONFIG_NET_POLL_CONTROLLER
+    .ndo_poll_controller = xticenet_poll_controller,
+#endif
 };
 
 
