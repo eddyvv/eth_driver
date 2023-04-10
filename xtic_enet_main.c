@@ -224,6 +224,16 @@ static int xtenet_open(struct net_device *ndev)
 
     if (!lp->is_tsn) {
         /* DMA配置 */
+
+        /* Enable NAPI scheduling before enabling Axi DMA Rx
+        * IRQ, or you might run into a race condition; the RX
+        * ISR disables IRQ processing before scheduling the
+        * NAPI function to complete the processing. If NAPI
+        * scheduling is (still) disabled at that time, no more
+        * RX IRQs will be processed as only the NAPI function
+        * re-enables them!
+        */
+        napi_enable(&lp->napi[i]);
     }
 
     if (lp->phy_mode == XXE_PHY_TYPE_USXGMII) {
@@ -299,12 +309,9 @@ static int xtenet_open(struct net_device *ndev)
     netif_tx_start_all_queues(ndev);
     xt_printk("%s end\n",__func__);
 	return 0;
+
 err_eth_irq:
-	while (i--) {
-		// q = lp->dq[i];
-		// free_irq(q->rx_irq, ndev);
-	}
-	i = lp->num_tx_queues;
+
     return ret;
 }
 
@@ -329,6 +336,24 @@ int axienet_queue_xmit(struct sk_buff *skb,
 
 	unsigned long flags;
 	struct axienet_dma_q *q;
+
+    if (lp->xtnet_config->mactype == XAXIENET_10G_25G ||
+	    lp->xtnet_config->mactype == XAXIENET_MRMAC) {
+		/* Need to manually pad the small frames in case of XXV MAC
+		 * because the pad field is not added by the IP. We must present
+		 * a packet that meets the minimum length to the IP core.
+		 * When the IP core is configured to calculate and add the FCS
+		 * to the packet the minimum packet length is 60 bytes.
+		 */
+		if (eth_skb_pad(skb)) {
+			ndev->stats.tx_dropped++;
+			ndev->stats.tx_errors++;
+			return NETDEV_TX_OK;
+		}
+	}
+    num_frag = skb_shinfo(skb)->nr_frags;
+
+	q = lp->dq[map];
 
     return 0;
 }
@@ -357,8 +382,11 @@ static int xticenet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 static int netdev_set_mac_address(struct net_device *ndev, void *p)
 {
 	struct sockaddr *addr = p;
+    xt_printk("%s start!\n", __func__);
 
 	xtenet_set_mac_address(ndev, addr->sa_data);
+
+    xt_printk("%s end!\n", __func__);
 	return 0;
 }
 /**
