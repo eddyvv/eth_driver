@@ -54,7 +54,7 @@ static struct xxvenet_option xxvenet_options[] = {
 static void xxvenet_setoptions(struct net_device *ndev, u32 options)
 {
 	int reg;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 	struct xxvenet_option *tp;
 
     tp = &xxvenet_options[0];
@@ -83,7 +83,7 @@ static void xxvenet_setoptions(struct net_device *ndev, u32 options)
 static int axienet_dma_bd_init(struct net_device *ndev)
 {
 	int i, ret = -EINVAL;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 
 	return ret;
 }
@@ -126,7 +126,7 @@ void __axienet_device_reset(struct axienet_dma_q *q)
 static void xtnet_device_reset(struct net_device *ndev)
 {
 	// u32 axienet_status;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 	u32 err, val;
     // struct axienet_dma_q *q;
 	// u32 i;
@@ -199,7 +199,7 @@ static int xtenet_open(struct net_device *ndev)
 {
     int ret = 0, i = 0;
     u32 reg, err;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
     xt_printk("%s start\n",__func__);
     xtnet_device_reset(ndev);
 
@@ -312,7 +312,7 @@ int axienet_queue_xmit(struct sk_buff *skb,
 	u32 csum_start_off;
 	u32 csum_index_off;
 	dma_addr_t tail_p;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 	struct axidma_bd *cur_p;
 
 	unsigned long flags;
@@ -385,7 +385,7 @@ void axienet_set_multicast_list(struct net_device *ndev)
 {
     int i;
 	u32 reg, af0reg, af1reg;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
     xt_printk("%s start\n",__func__);
     if ((lp->xtnet_config->mactype != XAXIENET_1G) || lp->eth_hasnobuf)
 		return;
@@ -403,7 +403,7 @@ static int axienet_ioctl(struct net_device *ndev, struct ifreq *rq, int cmd)
 
 static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
 {
-    struct xtenet_core_dev *lp = netdev_priv(ndev);
+    struct axienet_local *lp = netdev_priv(ndev);
 
     xt_printk("%s start\n",__func__);
 	if (netif_running(ndev))
@@ -466,7 +466,7 @@ static const struct net_device_ops xtnet_netdev_ops = {
 };
 
 
-static void xtenet_pci_disable_device(struct xtenet_core_dev *dev)
+static void xtenet_pci_disable_device(struct axienet_local *dev)
 {
     struct pci_dev *pdev = dev->pdev;
     if (dev->pci_status == XTNET_PCI_STATUS_ENABLED) {
@@ -475,7 +475,7 @@ static void xtenet_pci_disable_device(struct xtenet_core_dev *dev)
     }
 }
 
-static void xtenet_pci_close(struct xtenet_core_dev *dev)
+static void xtenet_pci_close(struct axienet_local *dev)
 {
     release_bar(dev->pdev);
     pci_clear_master(dev->pdev);
@@ -536,7 +536,7 @@ static void skel_get_configs(struct pci_dev *pdev)
     uint8_t val1;
     uint16_t val2;
     uint32_t val4, val5,reg_0;
-    struct xtenet_core_dev *dev  = pci_get_drvdata(pdev);
+    struct axienet_local *dev  = pci_get_drvdata(pdev);
 
     pci_read_config_word(pdev,PCI_VENDOR_ID, &val2);
     xt_printk("vendorID:0x%x\n",val2);
@@ -559,7 +559,7 @@ static void skel_get_configs(struct pci_dev *pdev)
 /**
  * PCI初始化
  */
-static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
+static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
              const struct pci_device_id *id)
 {
     int err;
@@ -636,7 +636,7 @@ static irqreturn_t xtnet_irq_handler(int irqn, void *data)
 /**
  * 释放中断处理程序
  */
-void xtnet_irq_deinit_pcie(struct xtenet_core_dev *dev)
+void xtnet_irq_deinit_pcie(struct axienet_local *dev)
 {
 	struct pci_dev *pdev = dev->pdev;
     struct net_device *ndev = dev->ndev;
@@ -717,7 +717,7 @@ static const struct ethtool_ops xtnet_ethtool_ops = {
 /**
  * 初始化PCI MSI中断
  */
-static int xtnet_irq_init_pcie(struct xtenet_core_dev *dev)
+static int xtnet_irq_init_pcie(struct axienet_local *dev)
 {
     struct pci_dev *pdev = dev->pdev;
     struct net_device *ndev = dev->ndev;
@@ -770,7 +770,7 @@ fail:
 void xtenet_set_mac_address(struct net_device *ndev,
 			     const void *address)
 {
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 
 	if (address)
 		ether_addr_copy(ndev->dev_addr, address);
@@ -781,6 +781,30 @@ void xtenet_set_mac_address(struct net_device *ndev,
 static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
 					    struct net_device *ndev)
 {
+	int i, ret;
+	struct axienet_local *lp = netdev_priv(ndev);
+	struct axienet_dma_q *q;
+	struct device_node *np = NULL;
+	struct resource dmares;
+
+    for_each_rx_dma_queue(lp, i) {
+		q = devm_kzalloc(&pdev->dev, sizeof(*q), GFP_KERNEL);
+		if (!q)
+			return -ENOMEM;
+
+		/* parent */
+		q->lp = lp;
+
+		lp->dq[i] = q;
+	}
+
+    /* Find the DMA node, map the DMA registers, and decode the DMA IRQs */
+	/* TODO handle error ret */
+	for_each_rx_dma_queue(lp, i) {
+		q = lp->dq[i];
+
+        q->dma_regs = lp->axidma_regs;
+    }
 
     return 0;
 }
@@ -789,7 +813,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
     int err;
     int ret = 0;
-    struct xtenet_core_dev *lp;
+    struct axienet_local *lp;
     struct net_device *ndev;
     int txcsum;
     int rxcsum;
@@ -798,7 +822,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     xt_printk("%s start!\n", __func__);
 
     /* 申请用于存放xtenet设备的空间 */
-    ndev = alloc_etherdev(sizeof(struct xtenet_core_dev));
+    ndev = alloc_etherdev(sizeof(struct axienet_local));
     if (!ndev) {
         xtenet_core_err(lp, "error alloc_etherdev for net_device\n");
         return -ENOMEM;
@@ -955,7 +979,7 @@ free_netdev:
 /* xtenet卸载函数 */
 static void xtenet_remove(struct pci_dev *pdev)
 {
-    struct xtenet_core_dev *lp = pci_get_drvdata(pdev);
+    struct axienet_local *lp = pci_get_drvdata(pdev);
     xt_printk("%s start\n",__func__);
 
     unregister_netdev(lp->ndev);

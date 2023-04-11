@@ -28,7 +28,7 @@ void __maybe_unused axienet_bd_free(struct net_device *ndev,
 				    struct axienet_dma_q *q)
 {
 	int i;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 
 	for (i = 0; i < lp->rx_bd_num; i++) {
 		dma_unmap_single(ndev->dev.parent, q->rx_bd_v[i].phys,
@@ -69,7 +69,7 @@ void __maybe_unused axienet_bd_free(struct net_device *ndev,
 void axienet_dma_bd_release(struct net_device *ndev)
 {
 	int i;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 
 #ifdef CONFIG_AXIENET_HAS_MCDMA
 	for_each_tx_dma_queue(lp, i) {
@@ -98,7 +98,7 @@ static int __dma_txq_init(struct net_device *ndev, struct axienet_dma_q *q)
 {
 	int i;
 	u32 cr;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 
 	q->tx_bd_ci = 0;
 	q->tx_bd_tail = 0;
@@ -168,7 +168,7 @@ static int __dma_rxq_init(struct net_device *ndev,
 	int i;
 	u32 cr;
 	struct sk_buff *skb;
-	struct xtenet_core_dev *lp = netdev_priv(ndev);
+	struct axienet_local *lp = netdev_priv(ndev);
 	/* Reset the indexes which are used for accessing the BDs */
 	q->rx_bd_ci = 0;
 

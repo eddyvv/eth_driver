@@ -393,7 +393,7 @@ struct axidma_bd {
  * @rx_bytes:	Number of receive bytes processed by the dma queue.
  */
 struct axienet_dma_q {
-	struct xtenet_core_dev	*lp; /* parent */
+	struct axienet_local	*lp; /* parent */
 	void __iomem *dma_regs;
 
 	int tx_irq;
@@ -509,7 +509,7 @@ struct axienet_dma_q {
  * @gt_lane: MRMAC GT lane index used.
  * @ptp_os_cf: CF TS of PTP PDelay req for one step usage.
  */
-struct xtenet_core_dev {
+struct axienet_local {
 
     u16    num_tx_queues;   /* Number of TX DMA queues */
     u16    num_rx_queues;   /* Number of RX DMA queues */
@@ -546,6 +546,12 @@ struct xtenet_core_dev {
     int csum_offload_on_rx_path;
     /* bar地址 */
     phys_addr_t     bar_addr;
+    phys_addr_t     axidma_regs;
+
+
+
+
+
     /* 映射后的bar地址 */
     u8 __iomem      *regs;
     /* 长度 */
@@ -617,7 +623,7 @@ static inline void axienet_dma_out32(struct axienet_dma_q *q,
 /*
  * register write
  */
-static inline void xtenet_iow(struct xtenet_core_dev *lp, off_t offset,
+static inline void xtenet_iow(struct axienet_local *lp, off_t offset,
                    u32 value)
 {
     iowrite32(value, lp->regs + offset);
@@ -626,7 +632,7 @@ static inline void xtenet_iow(struct xtenet_core_dev *lp, off_t offset,
 /*
  * register read
  */
-static inline u32 xtenet_ior(struct xtenet_core_dev *lp, off_t offset)
+static inline u32 xtenet_ior(struct axienet_local *lp, off_t offset)
 {
     return ioread32(lp->regs + offset);
 }
