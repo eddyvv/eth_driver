@@ -576,6 +576,9 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
 
     /* 获取bar0地址 */
     dev->bar_addr = pci_resource_start(pdev, 0);
+    dev->axidma_addr = dev->bar_addr + AXIDMA_1_BASE;
+    dev->xdma_addr = dev->bar_addr + XDMA0_CTRL_BASE;
+    dev->xxv_addr = dev->bar_addr + XXV_ETHERNET_0_BASE;
     xt_printk("bar0 = 0x%llx\n", dev->bar_addr);
 
     dev->bar_size = pci_resource_len(pdev, 0);

@@ -30,6 +30,14 @@ char xtenet_driver_name[] = "xtenet_eth";
 #define PCI_VENDOR_ID_XTIC 0x8086
 #define PCI_DEVICE_ID_XTIC 0x100f
 
+#define XDMA0_CTRL_BASE     0x00000000
+#define XDMA0_B_BASE     0x76000000
+#define AXIDMA_1_BASE   0x41e00000
+#define XXV_ETHERNET_0_BASE   0x44A40000
+
+
+
+
 
 
 /* Packet size info */
@@ -546,14 +554,15 @@ struct axienet_local {
     int csum_offload_on_rx_path;
     /* bar地址 */
     phys_addr_t     bar_addr;
-    phys_addr_t     axidma_regs;
-
-
-
-
+    phys_addr_t     axidma_addr;
+    phys_addr_t     xdma_addr;
+    phys_addr_t     xxv_addr;
 
     /* 映射后的bar地址 */
     u8 __iomem      *regs;
+    u8 __iomem      *axidma_regs;
+    u8 __iomem      *xdma_regs;
+    u8 __iomem      *xxv_regs;
     /* 长度 */
     int         bar_size;
     /* xtenet设备状态 */
