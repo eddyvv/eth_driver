@@ -21,7 +21,7 @@ char xtenet_driver_name[] = "xtenet_eth";
 
 
 #define xtenet_core_err(__dev, format, ...)         \
-    dev_err((__dev)->device, "%s:%d:(pid %d): " format, \
+    dev_err((__dev)->dev, "%s:%d:(pid %d): " format, \
         __func__, __LINE__, current->pid,       \
            ##__VA_ARGS__)
 
@@ -538,6 +538,8 @@ struct xtenet_core_dev {
 	u32 usxgmii_rate;
 	u32 mrmac_rate;		/* MRMAC speed */
 
+    u8 dma_mask;
+
     struct napi_struct napi[XTIC_MAX_QUEUES];	/* NAPI Structure */
 
     int csum_offload_on_tx_path;
@@ -555,7 +557,7 @@ struct xtenet_core_dev {
     /* PCI设备状态 */
     enum xtenet_pci_status       pci_status;
     /* 设备对象 */
-    struct device       *device;
+    struct device       *dev;
     /* 网络设备 */
     struct net_device   *ndev;
     const struct xtnet_config *xtnet_config;

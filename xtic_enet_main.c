@@ -393,7 +393,7 @@ void axienet_set_multicast_list(struct net_device *ndev)
 
 }
 
-static int axienet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
+static int axienet_ioctl(struct net_device *ndev, struct ifreq *rq, int cmd)
 {
     xt_printk("%s start\n",__func__);
 
@@ -593,10 +593,10 @@ static int xtenet_pci_init(struct xtenet_core_dev *dev, struct pci_dev *pdev,
     /* 设置PCI主控制器模式，并启用DMA传输 */
     pci_set_master(pdev);
     /* 设置PCI DMA功能 */
-    err = set_dma_caps(pdev);
-    if (err) {
-        xtenet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
-    }
+    // err = set_dma_caps(pdev);
+    // if (err) {
+    //     xtenet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
+    // }
     /* 映射bar0至虚拟地址空间 */
     dev->regs = pci_ioremap_bar(pdev, BAR_0);
     xt_printk("dev->regs = 0x%x\n",(unsigned int)(long)dev->regs);
@@ -778,10 +778,18 @@ void xtenet_set_mac_address(struct net_device *ndev,
 		eth_hw_addr_random(ndev);
 }
 
+static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
+					    struct net_device *ndev)
+{
+
+    return 0;
+}
+
 static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
     int err;
-    struct xtenet_core_dev *dev;
+    int ret = 0;
+    struct xtenet_core_dev *lp;
     struct net_device *ndev;
     int txcsum;
     int rxcsum;
@@ -792,7 +800,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     /* 申请用于存放xtenet设备的空间 */
     ndev = alloc_etherdev(sizeof(struct xtenet_core_dev));
     if (!ndev) {
-        xtenet_core_err(dev, "error alloc_etherdev for net_device\n");
+        xtenet_core_err(lp, "error alloc_etherdev for net_device\n");
         return -ENOMEM;
     }
 
@@ -807,46 +815,47 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     /* 将PCI设备与dev绑定 */
     SET_NETDEV_DEV(ndev, &pdev->dev);
 
-    dev = netdev_priv(ndev);
-    dev->ndev = ndev;
-    dev->pdev = pdev;
-    dev->options = XTIC_OPTION_DEFAULTS;
+    lp = netdev_priv(ndev);
+    lp->ndev = ndev;
+    lp->dev = &pdev->dev;
+    lp->pdev = pdev;
+    lp->options = XTIC_OPTION_DEFAULTS;
 
-    dev->xtnet_config = &axienet_10g25g_config;
+    lp->xtnet_config = &axienet_10g25g_config;
 
-    dev->num_tx_queues = num_queues;
-    dev->num_rx_queues = num_queues;
-    dev->rx_bd_num = RX_BD_NUM_DEFAULT;
-    dev->tx_bd_num = TX_BD_NUM_DEFAULT;
+    lp->num_tx_queues = num_queues;
+    lp->num_rx_queues = num_queues;
+    lp->rx_bd_num = RX_BD_NUM_DEFAULT;
+    lp->tx_bd_num = TX_BD_NUM_DEFAULT;
 
-    err = xtenet_pci_init(dev, pdev, id);
+    err = xtenet_pci_init(lp, pdev, id);
     if (err) {
-        xtenet_core_err(dev, "xtenet_pci_init failed with error code %d\n", err);
+        xtenet_core_err(lp, "xtenet_pci_init failed with error code %d\n", err);
         goto xt_pci_init_err;
     }
 
     /* 设置校验和卸载，但如果未指定，则默认为关闭 */
-    dev->features = 0;
+    lp->features = 0;
 
     // txcsum = ;
     if(txcsum){
         switch(txcsum){
         case 1:
-            dev->csum_offload_on_tx_path =
+            lp->csum_offload_on_tx_path =
                 XAE_FEATURE_PARTIAL_TX_CSUM;
-            dev->features |= XAE_FEATURE_PARTIAL_TX_CSUM;
+            lp->features |= XAE_FEATURE_PARTIAL_TX_CSUM;
             /* Can checksum TCP/UDP over IPv4. */
             ndev->features |= NETIF_F_IP_CSUM | NETIF_F_SG;
         break;
         case 2:
-            dev->csum_offload_on_tx_path =
+            lp->csum_offload_on_tx_path =
                 XAE_FEATURE_FULL_TX_CSUM;
-            dev->features |= XAE_FEATURE_FULL_TX_CSUM;
+            lp->features |= XAE_FEATURE_FULL_TX_CSUM;
             /* Can checksum TCP/UDP over IPv4. */
             ndev->features |= NETIF_F_IP_CSUM | NETIF_F_SG;
         break;
         default:
-            dev->csum_offload_on_tx_path = XAE_NO_CSUM_OFFLOAD;
+            lp->csum_offload_on_tx_path = XAE_NO_CSUM_OFFLOAD;
         break;
         }
     }
@@ -860,55 +869,72 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	 */
         switch(rxcsum){
         case 1:
-            dev->csum_offload_on_rx_path =
+            lp->csum_offload_on_rx_path =
                 XAE_FEATURE_PARTIAL_RX_CSUM;
-            dev->features |= XAE_FEATURE_PARTIAL_RX_CSUM;
+            lp->features |= XAE_FEATURE_PARTIAL_RX_CSUM;
             /* Can checksum TCP/UDP over IPv4. */
             ndev->features |= NETIF_F_IP_CSUM | NETIF_F_SG;
         break;
         case 2:
-            dev->csum_offload_on_rx_path =
+            lp->csum_offload_on_rx_path =
                 XAE_FEATURE_FULL_RX_CSUM;
-            dev->features |= XAE_FEATURE_FULL_RX_CSUM;
+            lp->features |= XAE_FEATURE_FULL_RX_CSUM;
             /* Can checksum TCP/UDP over IPv4. */
             ndev->features |= NETIF_F_IP_CSUM | NETIF_F_SG;
         break;
         default:
-            dev->csum_offload_on_rx_path = XAE_NO_CSUM_OFFLOAD;
+            lp->csum_offload_on_rx_path = XAE_NO_CSUM_OFFLOAD;
         break;
         }
     }
 
-	dev->rxmem = RX_MEM;
+	lp->rxmem = RX_MEM;
 	/** phy_mode是可选的，但未指定时不应
 	 * 是一个可以改变驱动程序行为的值，因此将其设置为无效
 	 * 默认值。
 	 */
-	dev->phy_mode = PHY_INTERFACE_MODE_NA;
+	lp->phy_mode = PHY_INTERFACE_MODE_NA;
 
 	/* Set default USXGMII rate */
-	dev->usxgmii_rate = SPEED_1000;
+	lp->usxgmii_rate = SPEED_1000;
 
 	/* Set default MRMAC rate */
-	dev->mrmac_rate = SPEED_10000;
+	lp->mrmac_rate = SPEED_10000;
 
-    netif_napi_add(ndev, &dev->napi[0], xtenet_rx_poll, XAXIENET_NAPI_WEIGHT);
+    if(!lp->is_tsn)
+    {
+        netif_napi_add(ndev, &lp->napi[0], xtenet_rx_poll, XAXIENET_NAPI_WEIGHT);
 
-    err = xtnet_irq_init_pcie(dev);
+        ret = axienet_dma_probe(pdev, ndev);
+
+        if (ret) {
+			pr_err("Getting DMA resource failed\n");
+			goto free_netdev;
+		}
+        if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(lp->dma_mask)) != 0) {
+			dev_warn(&pdev->dev, "default to %d-bit dma mask\n", XAE_DMA_MASK_MIN);
+			if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(XAE_DMA_MASK_MIN)) != 0) {
+				dev_err(&pdev->dev, "dma_set_mask_and_coherent failed, aborting\n");
+				goto free_netdev;
+			}
+		}
+    }
+
+    err = xtnet_irq_init_pcie(lp);
     if (err) {
-		xtenet_core_err(dev, "Failed to set up interrupts err (%i)\n", err);
+		xtenet_core_err(lp, "Failed to set up interrupts err (%i)\n", err);
 		// goto fail_init_irq;
 	}
 
     xtenet_set_mac_address(ndev, NULL);
 
-    dev->coalesce_count_rx = XAXIDMA_DFT_RX_THRESHOLD;
-	dev->coalesce_count_tx = XAXIDMA_DFT_TX_THRESHOLD;
+    lp->coalesce_count_rx = XAXIDMA_DFT_RX_THRESHOLD;
+	lp->coalesce_count_tx = XAXIDMA_DFT_TX_THRESHOLD;
 
     strcpy(ndev->name, "eth%d");
     err = register_netdev(ndev);
 	if (err) {
-		xtenet_core_err(dev, "register_netdev() error (%i)\n", err);
+		xtenet_core_err(lp, "register_netdev() error (%i)\n", err);
 		// axienet_mdio_teardown(pdev);
 		// goto err_disable_clk;
 	}
@@ -918,24 +944,25 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
     return 0;
 /* 错误处理 */
-// xt_err_init_one:
-    xtenet_pci_close(dev);
+xt_err_init_one:
+    xtenet_pci_close(lp);
 xt_pci_init_err:
-
+free_netdev:
+	free_netdev(ndev);
     return err;
 }
 
 /* xtenet卸载函数 */
 static void xtenet_remove(struct pci_dev *pdev)
 {
-    struct xtenet_core_dev *dev = pci_get_drvdata(pdev);
+    struct xtenet_core_dev *lp = pci_get_drvdata(pdev);
     xt_printk("%s start\n",__func__);
 
-    unregister_netdev(dev->ndev);
-    iounmap(dev->regs);
-    xtenet_pci_close(dev);
-    xtnet_irq_deinit_pcie(dev);
-    free_netdev(dev->ndev);
+    unregister_netdev(lp->ndev);
+    iounmap(lp->regs);
+    xtenet_pci_close(lp);
+    xtnet_irq_deinit_pcie(lp);
+    free_netdev(lp->ndev);
 
     xt_printk("%s end\n",__func__);
 }
