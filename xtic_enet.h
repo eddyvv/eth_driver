@@ -8,7 +8,7 @@
 #include <linux/if_vlan.h>
 #include "xtic_enet_config.h"
 
-char xtenet_driver_name[] = "xtenet_eth";
+
 /* VENDOR_ID 0x10ee DEVICE_ID 0x903f */
 
 #define XTIC_DEBUG
@@ -597,7 +597,12 @@ static inline void axienet_dma_bdout(struct axienet_dma_q *q,
 				     off_t reg, dma_addr_t value)
 {
 #if defined(CONFIG_PHYS_ADDR_T_64BIT)
-	writeq(value, (q->dma_regs + reg));
+#ifdef DEBUG
+    writeq(value, (q->dma_regs + reg));
+#else
+    return;
+#endif // DEBUG
+
 #else
 	writel(value, (q->dma_regs + reg));
 #endif
@@ -614,7 +619,11 @@ static inline void axienet_dma_bdout(struct axienet_dma_q *q,
  */
 static inline u32 axienet_dma_in32(struct axienet_dma_q *q, off_t reg)
 {
-	return ioread32(q->dma_regs + reg);
+#ifdef WRITE_REG
+    return ioread32(q->dma_regs + reg);
+#else
+    return 0;
+#endif // WRITE_REG
 }
 
 /**
@@ -629,7 +638,11 @@ static inline u32 axienet_dma_in32(struct axienet_dma_q *q, off_t reg)
 static inline void axienet_dma_out32(struct axienet_dma_q *q,
 				     off_t reg, u32 value)
 {
+#ifdef WRITE_REG
 	iowrite32(value, q->dma_regs + reg);
+#else
+    return;
+#endif//WRITE_REG
 }
 
 /*
@@ -638,7 +651,11 @@ static inline void axienet_dma_out32(struct axienet_dma_q *q,
 static inline void xtenet_iow(struct axienet_local *lp, off_t offset,
                    u32 value)
 {
+#ifdef WRITE_REG
     iowrite32(value, lp->regs + offset);
+#else
+    return;
+#endif//WRITE_REG
 }
 
 /*
@@ -646,7 +663,11 @@ static inline void xtenet_iow(struct axienet_local *lp, off_t offset,
  */
 static inline u32 xtenet_ior(struct axienet_local *lp, off_t offset)
 {
+#ifdef WRITE_REG
     return ioread32(lp->regs + offset);
+#else
+    return 0;
+#endif//WRITE_REG
 }
 
 

@@ -2,12 +2,12 @@ KERNELDIR := /lib/modules/$(shell uname -r)/build
 CURRENT_PATH := $(shell pwd)
 
 BUILD_DIR := build
-MODULE_NAME := xtic_enet_main
+MODULE_NAME := xtic_nic
 ccflags-y += -I$(shell pwd)
 
-obj-m := $(MODULE_NAME).o
+obj-m += $(MODULE_NAME).o
+$(MODULE_NAME)-objs := xtic_enet_main.o xtic_enet_dma.o
 
-# $(MODULE_NAME)-objs := $(MODULE_NAME).o
 
 EXTRA_CFLAGS += -g
 CONFIG_DEBUG_INFO=y
@@ -27,7 +27,6 @@ install:
 clean:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	sudo rm /lib/modules/$(shell uname -r)/kernel/drivers/$(MODULE_NAME).ko
-	rm -rf $(BUILD_DIR)
 	sudo rmmod $(MODULE_NAME)
 	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
 

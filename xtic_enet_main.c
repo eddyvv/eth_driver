@@ -6,7 +6,7 @@
 #include <linux/of.h>
 //#include <linux/dev_printk.h>
 #include <linux/etherdevice.h>
-
+char xtenet_driver_name[] = "xtenet_eth";
 static void release_bar(struct pci_dev *pdev);
 void xtenet_set_mac_address(struct net_device *ndev, const void *address);
 void axienet_set_multicast_list(struct net_device *ndev);
@@ -85,6 +85,13 @@ static int axienet_dma_bd_init(struct net_device *ndev)
 	int i, ret = -EINVAL;
 	struct axienet_local *lp = netdev_priv(ndev);
 
+    for_each_rx_dma_queue(lp, i) {
+        ret = axienet_dma_q_init(ndev, lp->dq[i]);
+        if (ret != 0) {
+			netdev_err(ndev, "%s: Failed to init DMA buf\n", __func__);
+			break;
+		}
+    }
 	return ret;
 }
 
@@ -128,8 +135,8 @@ static void xtnet_device_reset(struct net_device *ndev)
 	// u32 axienet_status;
 	struct axienet_local *lp = netdev_priv(ndev);
 	u32 err, val;
-    // struct axienet_dma_q *q;
-	// u32 i;
+    struct axienet_dma_q *q;
+	u32 i;
 
     if (lp->xtnet_config->mactype == XAXIENET_10G_25G) {
 		/* Reset the XXV MAC */
@@ -143,12 +150,12 @@ static void xtnet_device_reset(struct net_device *ndev)
 		xtenet_iow(lp, XXV_GT_RESET_OFFSET, val);
 	}
 
-    // if (!lp->is_tsn) {
-    //     for_each_rx_dma_queue(lp, i) {
-    //         q = lp->dq[i];
-    //         __axienet_device_reset(q);
-    //     }
-    // }
+    if (!lp->is_tsn) {
+        for_each_rx_dma_queue(lp, i) {
+            q = lp->dq[i];
+            // __axienet_device_reset(q);
+        }
+    }
 
     lp->max_frm_size = XAE_MAX_VLAN_FRAME_SIZE;
 
@@ -165,6 +172,13 @@ static void xtnet_device_reset(struct net_device *ndev)
 		    (lp->xtnet_config->mactype != XAXIENET_10G_25G &&
 		     lp->xtnet_config->mactype != XAXIENET_MRMAC))
 			lp->options |= XAE_OPTION_JUMBO;
+	}
+
+    if (!lp->is_tsn) {
+		if (axienet_dma_bd_init(ndev)) {
+			netdev_err(ndev, "%s: descriptor allocation failed\n",
+				   __func__);
+		}
 	}
 
     if (lp->xtnet_config->mactype == XAXIENET_10G_25G) {
