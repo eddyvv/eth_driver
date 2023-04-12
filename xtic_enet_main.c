@@ -816,7 +816,24 @@ static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
 		q = lp->dq[i];
 
         q->dma_regs = lp->axidma_regs;
+        q->eth_hasdre = true;
+        lp->dma_mask = XAE_DMA_MASK_MIN;
+
+        // lp->dq[i]->tx_irq = ;
+		// lp->dq[i]->rx_irq = ;
     }
+
+    for_each_rx_dma_queue(lp, i) {
+		struct axienet_dma_q *q = lp->dq[i];
+
+		spin_lock_init(&q->tx_lock);
+		spin_lock_init(&q->rx_lock);
+	}
+
+    for_each_rx_dma_queue(lp, i) {
+		netif_napi_add(ndev, &lp->napi[i], xtenet_rx_poll,
+			       XAXIENET_NAPI_WEIGHT);
+	}
 
     return 0;
 }
@@ -939,7 +956,6 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
     if(!lp->is_tsn)
     {
-        netif_napi_add(ndev, &lp->napi[0], xtenet_rx_poll, XAXIENET_NAPI_WEIGHT);
 
         ret = axienet_dma_probe(pdev, ndev);
 
