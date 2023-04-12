@@ -1039,11 +1039,27 @@ static void xtenet_remove(struct pci_dev *pdev)
     xt_printk("%s end\n",__func__);
 }
 
+static void xtenet_shutdown(struct pci_dev *pdev)
+{
+	struct net_device *ndev = pci_get_drvdata(pdev);
+
+    xt_printk("%s start\n",__func__);
+	rtnl_lock();
+	netif_device_detach(ndev);
+
+	if (netif_running(ndev))
+		dev_close(ndev);
+
+	rtnl_unlock();
+    xt_printk("%s end\n",__func__);
+}
+
 static struct pci_driver xtenet_driver = {
     .name     = xtenet_driver_name,
     .id_table   = xtenet_pci_tbl,
     .probe      = xtenet_probe,
     .remove     = xtenet_remove,
+    .shutdown   = xtenet_shutdown,
 };
 
 static int __init xtenet_init_module(void)
