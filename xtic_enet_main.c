@@ -580,6 +580,9 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     dev->xdma_addr = dev->bar_addr + XDMA0_CTRL_BASE;
     dev->xxv_addr = dev->bar_addr + XXV_ETHERNET_0_BASE;
     xt_printk("bar0 = 0x%llx\n", dev->bar_addr);
+    xt_printk("dev->axidma_addr = 0x%llx\n", dev->axidma_addr);
+    xt_printk("dev->xdma_addr = 0x%llx\n", dev->xdma_addr);
+    xt_printk("dev->xxv_addr = 0x%llx\n", dev->xxv_addr);
 
     dev->bar_size = pci_resource_len(pdev, 0);
     xt_printk("bar0 size = 0x%x\n", dev->bar_size);
@@ -602,7 +605,13 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     // }
     /* 映射bar0至虚拟地址空间 */
     dev->regs = pci_ioremap_bar(pdev, BAR_0);
+    dev->axidma_regs = dev->regs + AXIDMA_1_BASE;
+    dev->xdma_regs = dev->regs + XDMA0_CTRL_BASE;
+    dev->xxv_regs = dev->regs + XXV_ETHERNET_0_BASE;
     xt_printk("dev->regs = 0x%x\n",(unsigned int)(long)dev->regs);
+    xt_printk("dev->axidma_regs = 0x%x\n",(unsigned int)(long)dev->axidma_regs);
+    xt_printk("dev->xdma_regs = 0x%x\n",(unsigned int)(long)dev->xdma_regs);
+    xt_printk("dev->xxv_regs = 0x%x\n",(unsigned int)(long)dev->xxv_regs);
     if (!dev->regs){
         xtenet_core_err(dev, "Failed pci_ioremap_bar\n");
         goto xt_err_clr_master;
