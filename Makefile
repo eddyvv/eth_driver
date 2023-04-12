@@ -16,17 +16,15 @@ build: kernel_modules
 kernel_modules:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) modules
-	sudo cp $(MODULE_NAME).ko /lib/modules/$(shell uname -r)/kernel/drivers
 
 install:
 	sudo rmmod e1000
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) modules
-	sudo cp ./$(MODULE_NAME).ko /lib/modules/$(shell uname -r)/kernel/drivers
 	sudo insmod ./$(MODULE_NAME).ko
+
 clean:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
-	sudo rm /lib/modules/$(shell uname -r)/kernel/drivers/$(MODULE_NAME).ko
 	sudo rmmod $(MODULE_NAME)
 	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
 
