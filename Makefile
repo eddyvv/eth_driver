@@ -29,6 +29,6 @@ clean:
 	sudo rm /lib/modules/$(shell uname -r)/kernel/drivers/$(MODULE_NAME).ko
 	rm -rf $(BUILD_DIR)
 	sudo rmmod $(MODULE_NAME)
-	sudo insmod /lib/modules/5.15.0-60-generic/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
+	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
 
 
