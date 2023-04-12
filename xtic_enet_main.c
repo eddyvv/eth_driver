@@ -819,6 +819,7 @@ static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
         q->eth_hasdre = true;
         lp->dma_mask = XAE_DMA_MASK_MIN;
 
+        /* 中断号获取 */
         // lp->dq[i]->tx_irq = ;
 		// lp->dq[i]->rx_irq = ;
     }
@@ -982,6 +983,11 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
     lp->coalesce_count_rx = XAXIDMA_DFT_RX_THRESHOLD;
 	lp->coalesce_count_tx = XAXIDMA_DFT_TX_THRESHOLD;
+
+    lp->phy_mode = PHY_INTERFACE_MODE_10GKR;
+    lp->phy_interface = 0;
+
+
 
     strcpy(ndev->name, "eth%d");
     err = register_netdev(ndev);

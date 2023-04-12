@@ -543,6 +543,9 @@ struct axienet_local {
     u8 mac_addr[NODE_ADDRESS_SIZE];
     u32 coalesce_count_rx;
 	u32 coalesce_count_tx;
+
+    u32 phy_interface;
+
 	u32 usxgmii_rate;
 	u32 mrmac_rate;		/* MRMAC speed */
 
