@@ -2,6 +2,7 @@
 #include "xtic_phy.h"
 #include <linux/module.h>
 #include <linux/ethtool.h>
+#include <linux/circ_buf.h>
 #include <linux/pci.h>
 #include <linux/of.h>
 //#include <linux/dev_printk.h>
@@ -405,6 +406,35 @@ static int xticenet_stop(struct net_device *ndev)
     return 0;
 }
 
+/**
+ * axienet_check_tx_bd_space - Checks if a BD/group of BDs are currently busy
+ * @q:		Pointer to DMA queue structure
+ * @num_frag:	The number of BDs to check for
+ *
+ * Return: 0, on success
+ *	    NETDEV_TX_BUSY, if any of the descriptors are not free
+ *
+ * This function is invoked before BDs are allocated and transmission starts.
+ * This function returns 0 if a BD or group of BDs can be allocated for
+ * transmission. If the BD or any of the BDs are not free the function
+ * returns a busy status. This is invoked from axienet_start_xmit.
+ */
+static inline int axienet_check_tx_bd_space(struct axienet_dma_q *q,
+					    int num_frag)
+{
+	struct axienet_local *lp = q->lp;
+
+    struct axidma_bd *cur_p;
+
+	if (CIRC_SPACE(q->tx_bd_tail, q->tx_bd_ci, lp->tx_bd_num) < (num_frag + 1))
+		return NETDEV_TX_BUSY;
+
+	cur_p = &q->tx_bd_v[(q->tx_bd_tail + num_frag) % lp->tx_bd_num];
+	if (cur_p->status & XAXIDMA_BD_STS_ALL_MASK)
+		return NETDEV_TX_BUSY;
+    return 0;
+}
+
 int axienet_queue_xmit(struct sk_buff *skb,
 		       struct net_device *ndev, u16 map)
 {
@@ -437,6 +467,30 @@ int axienet_queue_xmit(struct sk_buff *skb,
 
 	q = lp->dq[map];
 
+    cur_p = &q->tx_bd_v[q->tx_bd_tail];
+
+    spin_lock_irqsave(&q->tx_lock, flags);
+    // if (axienet_check_tx_bd_space(q, num_frag)) {
+    //     if (netif_queue_stopped(ndev)) {
+	// 		spin_unlock_irqrestore(&q->tx_lock, flags);
+	// 		return NETDEV_TX_BUSY;
+	// 	}
+
+	// 	netif_stop_queue(ndev);
+
+    //     /* Matches barrier in axienet_start_xmit_done */
+	// 	smp_mb();
+
+	// 	/* Space might have just been freed - check again */
+	// 	if (axienet_check_tx_bd_space(q, num_frag)) {
+	// 		spin_unlock_irqrestore(&q->tx_lock, flags);
+	// 		return NETDEV_TX_BUSY;
+	// 	}
+
+	// 	netif_wake_queue(ndev);
+    // }
+
+    spin_unlock_irqrestore(&q->tx_lock, flags);
     return 0;
 }
 
