@@ -882,7 +882,7 @@ static const struct ethtool_ops xtnet_ethtool_ops = {
 // 	.get_pauseparam = axienet_ethtools_get_pauseparam,
 // 	.set_pauseparam = axienet_ethtools_set_pauseparam,
 // 	.get_coalesce   = axienet_ethtools_get_coalesce,
-	// .set_coalesce   = axienet_ethtools_set_coalesce,
+	.set_coalesce   = axienet_ethtools_set_coalesce,
 // 	.get_sset_count	= axienet_ethtools_sset_count,
 // 	.get_ethtool_stats = axienet_ethtools_get_stats,
 // 	.get_strings = axienet_ethtools_strings,
@@ -960,11 +960,9 @@ void axienet_set_mac_address(struct net_device *ndev,
 static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
 					    struct net_device *ndev)
 {
-	int i, ret;
+	int i;
 	struct axienet_local *lp = netdev_priv(ndev);
 	struct axienet_dma_q *q;
-	struct device_node *np = NULL;
-	struct resource dmares;
 
     for_each_rx_dma_queue(lp, i) {
 		q = devm_kzalloc(&pdev->dev, sizeof(*q), GFP_KERNEL);
