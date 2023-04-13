@@ -470,25 +470,25 @@ int axienet_queue_xmit(struct sk_buff *skb,
     cur_p = &q->tx_bd_v[q->tx_bd_tail];
 
     spin_lock_irqsave(&q->tx_lock, flags);
-    // if (axienet_check_tx_bd_space(q, num_frag)) {
-    //     if (netif_queue_stopped(ndev)) {
-	// 		spin_unlock_irqrestore(&q->tx_lock, flags);
-	// 		return NETDEV_TX_BUSY;
-	// 	}
+    if (axienet_check_tx_bd_space(q, num_frag)) {
+        if (netif_queue_stopped(ndev)) {
+			spin_unlock_irqrestore(&q->tx_lock, flags);
+			return NETDEV_TX_BUSY;
+		}
 
-	// 	netif_stop_queue(ndev);
+		netif_stop_queue(ndev);
 
-    //     /* Matches barrier in axienet_start_xmit_done */
-	// 	smp_mb();
+        /* Matches barrier in axienet_start_xmit_done */
+		smp_mb();
 
-	// 	/* Space might have just been freed - check again */
-	// 	if (axienet_check_tx_bd_space(q, num_frag)) {
-	// 		spin_unlock_irqrestore(&q->tx_lock, flags);
-	// 		return NETDEV_TX_BUSY;
-	// 	}
+		/* Space might have just been freed - check again */
+		if (axienet_check_tx_bd_space(q, num_frag)) {
+			spin_unlock_irqrestore(&q->tx_lock, flags);
+			return NETDEV_TX_BUSY;
+		}
 
-	// 	netif_wake_queue(ndev);
-    // }
+		netif_wake_queue(ndev);
+    }
 
     spin_unlock_irqrestore(&q->tx_lock, flags);
     return 0;
