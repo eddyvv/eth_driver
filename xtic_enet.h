@@ -115,6 +115,8 @@
 #define XXV_USXGMII_AN_OFFSET        0x000000C8
 #define XXV_USXGMII_AN_STS_OFFSET      0x00000458
 
+#define XAE_IE_OFFSET		0x00000014 /* Interrupt enable */
+
 /* XXV MAC Register Mask Definitions */
 #define XXV_GT_RESET_MASK         BIT(0)
 #define XXV_TC_TX_MASK          BIT(0)
@@ -258,6 +260,8 @@
 
 #define XAXIDMA_BD_MINIMUM_ALIGNMENT	0x40
 
+#define DESC_DMA_MAP_SINGLE 0
+#define DESC_DMA_MAP_PAGE 1
 
 #define BAR_0 0
 
@@ -295,7 +299,7 @@ enum axienet_ip_type {
 	XAXIENET_MRMAC,
 };
 
-struct xtnet_config {
+struct axienet_config {
 	enum axienet_ip_type mactype;
 	void (*setoptions)(struct net_device *ndev, u32 options);
 	// int (*clk_init)(struct platform_device *pdev, struct clk **axi_aclk,
@@ -492,7 +496,7 @@ struct axienet_dma_q {
  * @phy_flags:  Phy interface flags.
  * @eth_hasnobuf: Ethernet is configured in Non buf mode.
  * @eth_hasptp: Ethernet is configured for ptp.
- * @xtnet_config: Ethernet config structure
+ * @axienet_config: Ethernet config structure
  * @tx_ts_regs:   Base address for the axififo device address space.
  * @rx_ts_regs:   Base address for the rx axififo device address space.
  * @tstamp_config: Hardware timestamp config structure.
@@ -551,6 +555,7 @@ struct axienet_local {
 
     u8 dma_mask;
 
+    struct tasklet_struct dma_err_tasklet[XTIC_MAX_QUEUES];
     struct napi_struct napi[XTIC_MAX_QUEUES];	/* NAPI Structure */
 
     int csum_offload_on_tx_path;
@@ -578,11 +583,28 @@ struct axienet_local {
     struct device       *dev;
     /* 网络设备 */
     struct net_device   *ndev;
-    const struct xtnet_config *xtnet_config;
+    const struct axienet_config *axienet_config;
 };
 
 int __maybe_unused axienet_dma_q_init(struct net_device *ndev,
 				      struct axienet_dma_q *q);
+void axienet_dma_err_handler(unsigned long data);
+irqreturn_t __maybe_unused axienet_tx_irq(int irq, void *_ndev);
+irqreturn_t __maybe_unused axienet_rx_irq(int irq, void *_ndev);
+void axienet_start_xmit_done(struct net_device *ndev, struct axienet_dma_q *q);
+void __axienet_device_reset(struct axienet_dma_q *q);
+void axienet_dma_bd_release(struct net_device *ndev);
+
+void axienet_set_mac_address(struct net_device *ndev, const void *address);
+void axienet_set_multicast_list(struct net_device *ndev);
+
+void __maybe_unused axienet_bd_free(struct net_device *ndev,
+				    struct axienet_dma_q *q);
+int __maybe_unused axienet_dma_q_init(struct net_device *ndev,
+				      struct axienet_dma_q *q);
+
+
+
 
 /**
  * axienet_dma_bdout - Memory mapped Axi DMA register Buffer Descriptor write.
@@ -648,7 +670,7 @@ static inline void axienet_dma_out32(struct axienet_dma_q *q,
 /*
  * register write
  */
-static inline void xtenet_iow(struct axienet_local *lp, off_t offset,
+static inline void axienet_iow(struct axienet_local *lp, off_t offset,
                    u32 value)
 {
 #ifdef WRITE_REG
