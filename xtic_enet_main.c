@@ -939,6 +939,98 @@ void xtnet_irq_deinit_pcie(struct axienet_local *dev)
 }
 
 /**
+ * axienet_recv - Is called from Axi DMA Rx Isr to complete the received
+ *		  BD processing.
+ * @ndev:	Pointer to net_device structure.
+ * @budget:	NAPI budget
+ * @q:		Pointer to axienet DMA queue structure
+ *
+ * This function is invoked from the Axi DMA Rx isr(poll) to process the Rx BDs
+ * It does minimal processing and invokes "netif_receive_skb" to complete
+ * further processing.
+ * Return: Number of BD's processed.
+ */
+static int axienet_recv(struct net_device *ndev, int budget,
+			struct axienet_dma_q *q)
+{
+	u32 length;
+	u32 size = 0;
+	u32 packets = 0;
+	dma_addr_t tail_p = 0;
+	struct axienet_local *lp = netdev_priv(ndev);
+	struct sk_buff *skb, *new_skb;
+    struct axidma_bd *cur_p;
+    unsigned int numbdfree = 0;
+
+    /* Get relevat BD status value */
+	rmb();
+
+    cur_p = &q->rx_bd_v[q->rx_bd_ci];
+
+    while ((numbdfree < budget) &&
+	       (cur_p->status & XAXIDMA_BD_STS_COMPLETE_MASK)) {
+		new_skb = netdev_alloc_skb(ndev, lp->max_frm_size);
+		if (!new_skb) {
+			dev_err(lp->dev, "No memory for new_skb\n");
+			break;
+		}
+        tail_p = q->rx_bd_p + sizeof(*q->rx_bd_v) * q->rx_bd_ci;
+        dma_unmap_single(ndev->dev.parent, cur_p->phys,
+				 lp->max_frm_size,
+				 DMA_FROM_DEVICE);
+
+		skb = (struct sk_buff *)(cur_p->sw_id_offset);
+
+		if (lp->eth_hasnobuf ||
+		    (lp->axienet_config->mactype != XAXIENET_1G))
+			length = cur_p->status & XAXIDMA_BD_STS_ACTUAL_LEN_MASK;
+		else
+			length = cur_p->app4 & 0x0000FFFF;
+
+		skb_put(skb, length);
+
+        skb->protocol = eth_type_trans(skb, ndev);
+		/*skb_checksum_none_assert(skb);*/
+		skb->ip_summed = CHECKSUM_NONE;
+
+        if ((lp->features & XAE_FEATURE_PARTIAL_RX_CSUM) != 0 &&
+			   skb->protocol == htons(ETH_P_IP) &&
+			   skb->len > 64 && !lp->eth_hasnobuf &&
+			   (lp->axienet_config->mactype == XAXIENET_1G)) {
+			skb->csum = be32_to_cpu(cur_p->app3 & 0xFFFF);
+			skb->ip_summed = CHECKSUM_COMPLETE;
+		}
+        netif_receive_skb(skb);
+
+        size += length;
+		packets++;
+
+		/* Ensure that the skb is completely updated
+		 * prio to mapping the DMA
+		 */
+		wmb();
+
+		cur_p->phys = dma_map_single(ndev->dev.parent, new_skb->data,
+					   lp->max_frm_size,
+					   DMA_FROM_DEVICE);
+		cur_p->cntrl = lp->max_frm_size;
+		cur_p->status = 0;
+		cur_p->sw_id_offset = (phys_addr_t)new_skb;
+
+		if (++q->rx_bd_ci >= lp->rx_bd_num)
+			q->rx_bd_ci = 0;
+
+		/* Get relevat BD status value */
+		rmb();
+
+        cur_p = &q->rx_bd_v[q->rx_bd_ci];
+        numbdfree++;
+    }
+
+    return numbdfree;
+}
+
+/**
  * NAPI轮询回调函数
  * xtenet_rx_poll - Poll routine for rx packets (NAPI)
  * @napi:	napi structure pointer
@@ -951,7 +1043,30 @@ void xtnet_irq_deinit_pcie(struct axienet_local *dev)
  */
 int xtenet_rx_poll(struct napi_struct *napi, int quota)
 {
-    int work_done = 0;
+    struct net_device *ndev = napi->dev;
+	struct axienet_local *lp = netdev_priv(ndev);
+	int work_done = 0;
+	unsigned int status, cr;
+
+	int map = napi - lp->napi;
+
+	struct axienet_dma_q *q = lp->dq[map];
+
+    spin_lock(&q->rx_lock);
+
+    status = axienet_dma_in32(q, XAXIDMA_RX_SR_OFFSET);
+	while ((status & (XAXIDMA_IRQ_IOC_MASK | XAXIDMA_IRQ_DELAY_MASK)) &&
+	       (work_done < quota)) {
+		axienet_dma_out32(q, XAXIDMA_RX_SR_OFFSET, status);
+		if (status & XAXIDMA_IRQ_ERROR_MASK) {
+			dev_err(lp->dev, "Rx error 0x%x\n\r", status);
+			break;
+		}
+		work_done += axienet_recv(lp->ndev, quota - work_done, q);
+		status = axienet_dma_in32(q, XAXIDMA_RX_SR_OFFSET);
+	}
+
+    spin_unlock(&q->rx_lock);
 
     return work_done;
 }
