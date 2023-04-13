@@ -490,8 +490,59 @@ int axienet_queue_xmit(struct sk_buff *skb,
 		netif_wake_queue(ndev);
     }
 
+    cur_p->cntrl = (skb_headlen(skb) | XAXIDMA_BD_CTRL_TXSOF_MASK);
+
+    if (!q->eth_hasdre &&
+	    (((phys_addr_t)skb->data & 0x3) || num_frag > 0)) {
+		skb_copy_and_csum_dev(skb, q->tx_buf[q->tx_bd_tail]);
+
+        cur_p->phys = q->tx_bufs_dma +
+			      (q->tx_buf[q->tx_bd_tail] - q->tx_bufs);
+
+        cur_p->cntrl = skb_pagelen(skb) | XAXIDMA_BD_CTRL_TXSOF_MASK;
+        goto out;
+    } else {
+        cur_p->phys = dma_map_single(ndev->dev.parent, skb->data,
+					     skb_headlen(skb), DMA_TO_DEVICE);
+    }
+
+    for (ii = 0; ii < num_frag; ii++) {
+		u32 len;
+		skb_frag_t *frag;
+
+		if (++q->tx_bd_tail >= lp->tx_bd_num)
+			q->tx_bd_tail = 0;
+
+        cur_p = &q->tx_bd_v[q->tx_bd_tail];
+
+        frag = &skb_shinfo(skb)->frags[ii];
+		len = skb_frag_size(frag);
+		cur_p->phys = skb_frag_dma_map(ndev->dev.parent, frag, 0, len,
+					       DMA_TO_DEVICE);
+		cur_p->cntrl = len;
+		cur_p->tx_desc_mapping = DESC_DMA_MAP_PAGE;
+	}
+
+out:
+    cur_p->cntrl |= XAXIDMA_BD_CTRL_TXEOF_MASK;
+	tail_p = q->tx_bd_p + sizeof(*q->tx_bd_v) * q->tx_bd_tail;
+
+    cur_p->tx_skb = (phys_addr_t)skb;
+	cur_p->tx_skb = (phys_addr_t)skb;
+
+	tail_p = q->tx_bd_p + sizeof(*q->tx_bd_v) * q->tx_bd_tail;
+	/* Ensure BD write before starting transfer */
+	wmb();
+
+    /* Start the transfer */
+    axienet_dma_bdout(q, XAXIDMA_TX_TDESC_OFFSET, tail_p);
+
+    if (++q->tx_bd_tail >= lp->tx_bd_num)
+		q->tx_bd_tail = 0;
+
     spin_unlock_irqrestore(&q->tx_lock, flags);
-    return 0;
+
+    return NETDEV_TX_OK;
 }
 
 
