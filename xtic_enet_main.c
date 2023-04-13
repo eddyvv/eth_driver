@@ -566,14 +566,6 @@ void axienet_set_multicast_list(struct net_device *ndev)
 
 }
 
-static int axienet_ioctl(struct net_device *ndev, struct ifreq *rq, int cmd)
-{
-    xt_printk("%s start\n",__func__);
-
-    xt_printk("%s end\n",__func__);
-    return 0;
-}
-
 static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
 {
     struct axienet_local *lp = netdev_priv(ndev);
@@ -609,6 +601,8 @@ static void xticenet_poll_controller(struct net_device *ndev)
 /* Ioctl MII Interface */
 static int xticenet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
+    xt_printk("%s start\n",__func__);
+
     if (!netif_running(dev))
         return -EINVAL;
 
