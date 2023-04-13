@@ -1027,6 +1027,15 @@ static int axienet_recv(struct net_device *ndev, int budget,
         numbdfree++;
     }
 
+    ndev->stats.rx_packets += packets;
+	ndev->stats.rx_bytes += size;
+	q->rx_packets += packets;
+	q->rx_bytes += size;
+
+	if (tail_p) {
+        axienet_dma_bdout(q, XAXIDMA_RX_TDESC_OFFSET, tail_p);
+    }
+
     return numbdfree;
 }
 
