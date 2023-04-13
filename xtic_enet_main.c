@@ -237,6 +237,7 @@ static int xtenet_open(struct net_device *ndev)
     int ret = 0, i = 0;
     u32 reg, err;
 	struct axienet_local *lp = netdev_priv(ndev);
+    struct axienet_dma_q *q;
     xt_printk("%s start\n",__func__);
     xtnet_device_reset(ndev);
 
@@ -266,7 +267,15 @@ static int xtenet_open(struct net_device *ndev)
 			if (ret)
 				goto err_tx_irq;
         }
+        for_each_rx_dma_queue(lp, i) {
+            /* Enable interrupts for Axi DMA Rx */
+                ret = request_irq(q->rx_irq, axienet_rx_irq,
+                        0, ndev->name, ndev);
+                if (ret)
+                    goto err_rx_irq;
+        }
     }
+
     if (lp->phy_mode == XXE_PHY_TYPE_USXGMII) {
         netdev_dbg(ndev, "RX reg: 0x%x\n",
 			   xtenet_ior(lp, XXV_RCW1_OFFSET));
@@ -342,11 +351,22 @@ static int xtenet_open(struct net_device *ndev)
 	return 0;
 
 err_eth_irq:
-
+    while (i--) {
+		q = lp->dq[i];
+		// free_irq(q->rx_irq, ndev);
+	}
+	i = lp->num_tx_queues;
 err_rx_irq:
-
+    while (i--) {
+		q = lp->dq[i];
+		// free_irq(q->tx_irq, ndev);
+	}
 err_tx_irq:
-
+    for_each_rx_dma_queue(lp, i)
+		// napi_disable(&lp->napi[i]);
+	for_each_rx_dma_queue(lp, i)
+		tasklet_kill(&lp->dma_err_tasklet[i]);
+	dev_err(lp->dev, "request_irq() failed\n");
     return ret;
 }
 
@@ -440,8 +460,6 @@ int axienet_queue_xmit(struct sk_buff *skb,
 {
     	u32 ii;
 	u32 num_frag;
-	u32 csum_start_off;
-	u32 csum_index_off;
 	dma_addr_t tail_p;
 	struct axienet_local *lp = netdev_priv(ndev);
 	struct axidma_bd *cur_p;
@@ -661,8 +679,6 @@ static int netdev_set_mac_address(struct net_device *ndev, void *p)
  */
 void axienet_set_multicast_list(struct net_device *ndev)
 {
-    int i;
-	u32 reg, af0reg, af1reg;
 	struct axienet_local *lp = netdev_priv(ndev);
     xt_printk("%s start\n",__func__);
     if ((lp->axienet_config->mactype != XAXIENET_1G) || lp->eth_hasnobuf)
@@ -1077,6 +1093,14 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
 
     spin_unlock(&q->rx_lock);
 
+    if (work_done < quota) {
+		napi_complete(napi);
+        /* Enable the interrupts again */
+		cr = axienet_dma_in32(q, XAXIDMA_RX_CR_OFFSET);
+		cr |= (XAXIDMA_IRQ_IOC_MASK | XAXIDMA_IRQ_DELAY_MASK);
+		axienet_dma_out32(q, XAXIDMA_RX_CR_OFFSET, cr);
+    }
+
     return work_done;
 }
 
@@ -1130,7 +1154,6 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
     struct pci_dev *pdev = dev->pdev;
     struct net_device *ndev = dev->ndev;
     int ret = 0;
-    u8 irq_;
     int k;
     // Allocate MSI IRQs
 	// dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI | PCI_IRQ_MSIX);
@@ -1178,8 +1201,6 @@ fail:
 void axienet_set_mac_address(struct net_device *ndev,
 			     const void *address)
 {
-	struct axienet_local *lp = netdev_priv(ndev);
-
 	if (address)
 		ether_addr_copy(ndev->dev_addr, address);
 	if (!is_valid_ether_addr(ndev->dev_addr))
@@ -1396,7 +1417,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
     return 0;
 /* 错误处理 */
-xt_err_init_one:
+// xt_err_init_one:
     xtenet_pci_close(lp);
 xt_pci_init_err:
 free_netdev:

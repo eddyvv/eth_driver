@@ -372,7 +372,7 @@ irqreturn_t __maybe_unused axienet_rx_irq(int irq, void *_ndev)
  */
 void __maybe_unused axienet_dma_err_handler(unsigned long data)
 {
-	u32 axienet_status;
+	// u32 axienet_status;
 	u32 cr, i;
 	struct axienet_dma_q *q = (struct axienet_dma_q *)data;
 	struct axienet_local *lp = q->lp;
