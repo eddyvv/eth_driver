@@ -714,8 +714,24 @@ static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
  */
 static void xticenet_poll_controller(struct net_device *ndev)
 {
+    struct axienet_local *lp = netdev_priv(ndev);
+	int i;
+	for_each_tx_dma_queue(lp, i)
+		disable_irq(lp->dq[i]->tx_irq);
+	for_each_rx_dma_queue(lp, i)
+		disable_irq(lp->dq[i]->rx_irq);
 
-    return;
+	for_each_rx_dma_queue(lp, i)
+
+	axienet_rx_irq(lp->dq[i]->rx_irq, ndev);
+	for_each_tx_dma_queue(lp, i)
+
+	axienet_tx_irq(lp->dq[i]->tx_irq, ndev);
+
+	for_each_tx_dma_queue(lp, i)
+		enable_irq(lp->dq[i]->tx_irq);
+	for_each_rx_dma_queue(lp, i)
+		enable_irq(lp->dq[i]->rx_irq);
 }
 #endif
 
