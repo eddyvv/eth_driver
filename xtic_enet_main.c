@@ -855,6 +855,11 @@ static void skel_get_configs(struct pci_dev *pdev)
     xt_printk("command:0x%x\n",val5);
     pci_read_config_dword(pdev,PCI_BASE_ADDRESS_0, &val5);
     xt_printk("bar0:0x%x\n",val5);
+    pci_read_config_byte(pdev, PCI_INTERRUPT_LINE, &val1);
+    xt_printk("pci_irq_pin:0x%x\n",val1);
+
+    pci_read_config_byte(pdev, PCI_INTERRUPT_PIN, &val1);
+    xt_printk("pci_irq_line:0x%x\n",val1);
 
     axienet_iow(dev, 0, 0x0);
     reg_0 = xtenet_ior(dev, 0x110c);
