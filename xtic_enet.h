@@ -6,6 +6,7 @@
 #include <linux/netdevice.h>
 #include <linux/phy.h>
 #include <linux/if_vlan.h>
+#include <linux/cdev.h>
 #include "xtic_enet_config.h"
 
 
@@ -447,6 +448,15 @@ struct axienet_dma_q {
 	unsigned long rx_bytes;
 };
 
+struct xtic_cdev {
+	dev_t devid;			/* 设备号 	 */
+	struct cdev cdev;		/* cdev 	*/
+	struct class *class;		/* 类 		*/
+	struct device *device;	/* 设备 	 */
+	int major;				/* 主设备号	  */
+	int minor;				/* 次设备号   */
+};
+
 /**
  * struct axienet_local - axienet private per device data
  * @ndev:   Pointer for net_device to which it will be attached.
@@ -581,6 +591,7 @@ struct axienet_local {
     enum xtenet_pci_status       pci_status;
     /* 设备对象 */
     struct device       *dev;
+    struct xtic_cdev    *cdev;
     /* 网络设备 */
     struct net_device   *ndev;
     const struct axienet_config *axienet_config;
