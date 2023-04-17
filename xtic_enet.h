@@ -455,6 +455,7 @@ struct xtic_cdev {
 	struct device *device;	/* 设备 	 */
 	int major;				/* 主设备号	  */
 	int minor;				/* 次设备号   */
+    spinlock_t lock;
 };
 
 /**
@@ -591,7 +592,7 @@ struct axienet_local {
     enum xtenet_pci_status       pci_status;
     /* 设备对象 */
     struct device       *dev;
-    struct xtic_cdev    *cdev;
+    struct xtic_cdev    *xcdev;
     /* 网络设备 */
     struct net_device   *ndev;
     const struct axienet_config *axienet_config;
@@ -613,9 +614,9 @@ void __maybe_unused axienet_bd_free(struct net_device *ndev,
 				    struct axienet_dma_q *q);
 int __maybe_unused axienet_dma_q_init(struct net_device *ndev,
 				      struct axienet_dma_q *q);
-int xtic_cdev_create_interfaces(struct axienet_local *dev);
-
-
+int xtic_cdev_create_interfaces(struct xtic_cdev *xcdev);
+void xtic_cdev_destroy_interfaces(struct xtic_cdev *xcdev);
+int xtic_cdev_init(void);
 
 /**
  * axienet_dma_bdout - Memory mapped Axi DMA register Buffer Descriptor write.

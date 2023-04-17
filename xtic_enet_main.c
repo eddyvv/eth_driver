@@ -1186,7 +1186,7 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
 
     // Set up interrupts
 	 //for (k = 0; k < dev->eth_irq; k++)
-     for (k = 0; k < 2; k++)
+     for (k = 0; k < 1; k++)
     {
 		struct xtnet_irq *irq;
 
@@ -1283,6 +1283,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     int ret = 0;
     struct axienet_local *lp;
     struct net_device *ndev;
+    struct xtic_cdev *xcdev;
     int txcsum;
     int rxcsum;
     u16 num_queues = XTIC_MAX_QUEUES;
@@ -1425,7 +1426,13 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     lp->phy_mode = PHY_INTERFACE_MODE_10GKR;
     lp->phy_interface = 0;
 
-    xtic_cdev_create_interfaces(lp);
+    xcdev = kzalloc(sizeof(*xcdev), GFP_KERNEL);
+    if (!xcdev) {
+        ret = -ENOMEM;
+    }
+    lp->xcdev = xcdev;
+
+    xtic_cdev_create_interfaces(xcdev);
 
     strcpy(ndev->name, "eth%d");
     err = register_netdev(ndev);
@@ -1459,7 +1466,7 @@ static void xtenet_remove(struct pci_dev *pdev)
     xtenet_pci_close(lp);
     xtnet_irq_deinit_pcie(lp);
     free_netdev(lp->ndev);
-
+    xtic_cdev_destroy_interfaces(lp->xcdev);
     xt_printk("%s end\n",__func__);
 }
 
@@ -1490,6 +1497,9 @@ static int __init xtenet_init_module(void)
 {
     int ret;
     xt_printk("%s\n",__func__);
+
+    // xtic_cdev_init();
+
     ret = pci_register_driver(&xtenet_driver);
     xt_printk("ret = 0x%x\n",ret);
     return ret;
