@@ -28,7 +28,9 @@ install:
 
 clean:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
+	rm -rf main mainApp
 	sudo rmmod $(MODULE_NAME)
 	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
+
 
 
