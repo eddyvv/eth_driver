@@ -14,7 +14,7 @@ CONFIG_DEBUG_INFO=y
 build: kernel_modules
 
 app:
-	g++ -o  main main.c -g
+	gcc -o mainApp main.c -g
 
 kernel_modules:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
