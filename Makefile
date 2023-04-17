@@ -6,7 +6,7 @@ MODULE_NAME := xtic_nic
 ccflags-y += -I$(shell pwd)
 
 obj-m += $(MODULE_NAME).o
-$(MODULE_NAME)-objs := xtic_enet_main.o xtic_enet_dma.o
+$(MODULE_NAME)-objs := xtic_enet_main.o xtic_enet_dma.o xtic_enet_cdev.o
 
 
 EXTRA_CFLAGS += -g

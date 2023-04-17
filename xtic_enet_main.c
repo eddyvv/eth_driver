@@ -1186,7 +1186,7 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
 
     // Set up interrupts
 	 //for (k = 0; k < dev->eth_irq; k++)
-     for (k = 0; k < 1; k++)
+     for (k = 0; k < 2; k++)
     {
 		struct xtnet_irq *irq;
 
@@ -1210,6 +1210,7 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
 		irq->index = k;
 		irq->irqn = pci_irq_vector(pdev, k);
 		dev->irq[k] = irq;
+        xt_printk("dev->irq[%d] = %d\n",k, irq->irqn);
 	}
 	return 0;
 fail:
@@ -1424,7 +1425,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     lp->phy_mode = PHY_INTERFACE_MODE_10GKR;
     lp->phy_interface = 0;
 
-
+    xtic_cdev_create_interfaces(lp);
 
     strcpy(ndev->name, "eth%d");
     err = register_netdev(ndev);
