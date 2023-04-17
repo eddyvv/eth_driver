@@ -7,8 +7,14 @@ extern char xtenet_driver_name[];
 
 static int xtic_cdev_open(struct inode *inode, struct file *file)
 {
-    xt_printk("%s start!\n", __func__);
+    struct xtic_cdev *xcdev = NULL;
 
+    xt_printk("%s start!\n", __func__);
+    xcdev = container_of(inode->i_cdev, struct xtic_cdev, cdev);
+    if(!xcdev){
+        pr_err("xcdev 0x%p inode 0x%lx\n", xcdev, inode->i_ino);
+		return -EINVAL;
+    }
     xt_printk("%s end!\n", __func__);
     return 0;
 }
@@ -40,6 +46,12 @@ static int  xtic_cdev_close(struct inode *inode, struct file *file)
 static long xtic_cdev_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 {
     xt_printk("%s start!\n", __func__);
+
+    switch(cmd) {
+        case 1:
+
+        break;
+    }
 
     xt_printk("%s end!\n", __func__);
     return 0;
