@@ -69,15 +69,15 @@ static long xtic_ioctrl_read(unsigned long arg, void* p)
         return -EFAULT;
     }
 
-    //READREG(p, debug_reg.addr, &ulTemp);
+    READREG(p, debug_reg.addr, &ulTemp);
     debug_reg.data = (unsigned int)ulTemp;
     xt_printk("copy_to_user start!\n");
     if(copy_to_user((struct xtic_degug_reg_wr *)arg, &debug_reg, sizeof(struct xtic_degug_reg_wr))){
         pr_err("%s err copy_to_user err!\n", __func__);
         return -EFAULT;
     }
-    xt_printk("read reg base addr= 0x%p, offset=0x%x, value=0x%x,ulTemp=0x%lx\n",
-                                p, debug_reg.addr, debug_reg.data, ulTemp);
+    xt_printk("read reg base addr= 0x%x, offset=0x%x, value=0x%x,ulTemp=0x%lx\n",
+                (unsigned int)(long)p, debug_reg.addr, debug_reg.data, ulTemp);
     return 0;
 }
 

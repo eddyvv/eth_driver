@@ -2,7 +2,7 @@
 #include <sys/io.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
-
+#include <unistd.h>
 struct xtic_degug_reg_wr{
     unsigned int addr;
     unsigned int data;
@@ -15,19 +15,22 @@ struct xtic_degug_reg_wr{
 
 int main(int argc, char *argv)
 {
-    struct xtic_degug_reg_wr *debug_reg;
+    struct xtic_degug_reg_wr debug_reg;
+    unsigned long page;
     int fd = open("/dev/xtenet_eth", O_RDWR);
     if (fd < 0){
         printf("Open Device Failed!\n");
         return -1;
     }
 
-    debug_reg->addr = 0x0;
-    debug_reg->data = 0x0;
+    debug_reg.addr = 0x0;
+    debug_reg.data = 0x0;
     if(0 != ioctl(fd, XILINX_IOC_READ_REG, &debug_reg)){
         printf(" ioctl() failed!\n");
         return -1;
     }
+    read(fd, &page, 8);
+    printf("read addr = 0x%x, data = 0x%x\n", debug_reg.addr, debug_reg.data);
     return 0;
 }
 
