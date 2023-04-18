@@ -19,12 +19,14 @@ app:
 kernel_modules:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) modules
+	make app
 
 install:
 	sudo rmmod e1000
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) modules
 	sudo insmod ./$(MODULE_NAME).ko
+	make app
 
 clean:
 	make -C $(KERNELDIR) M=$(CURRENT_PATH) clean

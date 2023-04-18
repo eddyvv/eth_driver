@@ -1431,6 +1431,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
         ret = -ENOMEM;
     }
     lp->xcdev = xcdev;
+    xcdev->axidev = lp;
 
     xtic_cdev_create_interfaces(xcdev);
 

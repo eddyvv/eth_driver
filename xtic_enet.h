@@ -37,7 +37,9 @@
 #define XXV_ETHERNET_0_BASE   0x44A40000
 
 
-
+#define XILINX_IOC_MAGIC                              'D'
+#define XILINX_IOC_READ_REG                       _IOR(XILINX_IOC_MAGIC, 0xc0, unsigned long)
+#define XILINX_IOC_WRITE_REG                      _IOW(XILINX_IOC_MAGIC, 0xc1, unsigned long)
 
 
 
@@ -448,11 +450,17 @@ struct axienet_dma_q {
 	unsigned long rx_bytes;
 };
 
+struct xtic_degug_reg_wr{
+    unsigned int addr;
+    unsigned int data;
+};
+
 struct xtic_cdev {
 	dev_t devid;			/* 设备号 	 */
 	struct cdev cdev;		/* cdev 	*/
 	struct class *class;		/* 类 		*/
 	struct device *device;	/* 设备 	 */
+    struct axienet_local *axidev;
 	int major;				/* 主设备号	  */
 	int minor;				/* 次设备号   */
     spinlock_t lock;

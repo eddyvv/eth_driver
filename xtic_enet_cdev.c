@@ -3,6 +3,11 @@
 #include <linux/init.h>
 #include <linux/module.h>
 
+#define READREG(pBaseAddr, offset, pbuf) \
+			(*((unsigned long *)(pbuf)) =  ioread32(pBaseAddr + offset))
+#define WRITEREG(pBaseAddr, offset, val) \
+			iowrite32(val, pBaseAddr + offset)
+
 extern char xtenet_driver_name[];
 
 static int xtic_cdev_open(struct inode *inode, struct file *file)
@@ -15,6 +20,9 @@ static int xtic_cdev_open(struct inode *inode, struct file *file)
         pr_err("xcdev 0x%p inode 0x%lx\n", xcdev, inode->i_ino);
 		return -EINVAL;
     }
+
+    file->private_data = xcdev;
+
     xt_printk("%s end!\n", __func__);
     return 0;
 }
@@ -43,18 +51,57 @@ static int  xtic_cdev_close(struct inode *inode, struct file *file)
     return 0;
 }
 
+static long xtic_ioctrl_read(unsigned long arg, void* p)
+{
+    unsigned long ulTemp = 0;
+    struct xtic_degug_reg_wr debug_reg;
+
+    xt_printk("%s start!\n", __func__);
+    if(0 == arg){
+        pr_err("%s err arg == 0!\n", __func__);
+        return -EFAULT;
+    }
+    xt_printk("memset start!\n");
+    memset(&debug_reg, 0x0, sizeof(struct xtic_degug_reg_wr));
+    xt_printk("copy_from_user start!\n");
+    if(copy_from_user(&debug_reg, (struct xtic_degug_reg_wr *)arg, sizeof(struct xtic_degug_reg_wr))){
+        pr_err("%s err copy_from_user err!\n", __func__);
+        return -EFAULT;
+    }
+
+    //READREG(p, debug_reg.addr, &ulTemp);
+    debug_reg.data = (unsigned int)ulTemp;
+    xt_printk("copy_to_user start!\n");
+    if(copy_to_user((struct xtic_degug_reg_wr *)arg, &debug_reg, sizeof(struct xtic_degug_reg_wr))){
+        pr_err("%s err copy_to_user err!\n", __func__);
+        return -EFAULT;
+    }
+    xt_printk("read reg base addr= 0x%p, offset=0x%x, value=0x%x,ulTemp=0x%lx\n",
+                                p, debug_reg.addr, debug_reg.data, ulTemp);
+    return 0;
+}
+
 static long xtic_cdev_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 {
+    long ret;
+    struct xtic_cdev *xcdev = (struct xtic_cdev *)flip->private_data;
+    struct axienet_local *lp = xcdev->axidev;
+
     xt_printk("%s start!\n", __func__);
 
     switch(cmd) {
-        case 1:
+        case XILINX_IOC_READ_REG:
+                ret = xtic_ioctrl_read(arg, lp->regs);
+            break;
+        case XILINX_IOC_WRITE_REG:
 
-        break;
+            break;
+        default:
+        	break;
     }
 
     xt_printk("%s end!\n", __func__);
-    return 0;
+    return ret;
 }
 
 static struct file_operations cdev_fops = {
