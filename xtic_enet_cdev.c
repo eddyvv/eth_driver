@@ -61,9 +61,9 @@ static long xtic_ioctrl_read(unsigned long arg, void* p)
         pr_err("%s err arg == 0!\n", __func__);
         return -EFAULT;
     }
-    xt_printk("memset start!\n");
+
     memset(&debug_reg, 0x0, sizeof(struct xtic_degug_reg_wr));
-    xt_printk("copy_from_user start!\n");
+
     if(copy_from_user(&debug_reg, (struct xtic_degug_reg_wr *)arg, sizeof(struct xtic_degug_reg_wr))){
         pr_err("%s err copy_from_user err!\n", __func__);
         return -EFAULT;
@@ -71,13 +71,35 @@ static long xtic_ioctrl_read(unsigned long arg, void* p)
 
     READREG(p, debug_reg.addr, &ulTemp);
     debug_reg.data = (unsigned int)ulTemp;
-    xt_printk("copy_to_user start!\n");
+
     if(copy_to_user((struct xtic_degug_reg_wr *)arg, &debug_reg, sizeof(struct xtic_degug_reg_wr))){
         pr_err("%s err copy_to_user err!\n", __func__);
         return -EFAULT;
     }
     xt_printk("read reg base addr= 0x%x, offset=0x%x, value=0x%x,ulTemp=0x%lx\n",
                 (unsigned int)(long)p, debug_reg.addr, debug_reg.data, ulTemp);
+    xt_printk("%s end!\n", __func__);
+    return 0;
+}
+
+static long xtic_ioctrl_write(unsigned long arg, void* p)
+{
+    struct xtic_degug_reg_wr debug_reg;
+
+    xt_printk("%s start!\n", __func__);
+    if(0 == arg){
+        pr_err("%s err arg == 0!\n", __func__);
+        return -EFAULT;
+    }
+    memset(&debug_reg, 0x0, sizeof(struct xtic_degug_reg_wr));
+
+    if(copy_from_user(&debug_reg, (struct xtic_degug_reg_wr *)arg, sizeof(struct xtic_degug_reg_wr))){
+        pr_err("%s err copy_from_user err!\n", __func__);
+        return -EFAULT;
+    }
+
+    WRITEREG(p, debug_reg.addr, debug_reg.data);
+    xt_printk("%s end!\n", __func__);
     return 0;
 }
 
@@ -94,7 +116,7 @@ static long xtic_cdev_ioctl(struct file *flip, unsigned int cmd, unsigned long a
                 ret = xtic_ioctrl_read(arg, lp->regs);
             break;
         case XILINX_IOC_WRITE_REG:
-
+                ret = xtic_ioctrl_write(arg, lp->regs);
             break;
         default:
         	break;
