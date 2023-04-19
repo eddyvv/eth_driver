@@ -141,13 +141,13 @@ static int create_xcdev(struct xtic_cdev *xcdev)
     xt_printk("%s start!\n", __func__);
 
     cdev_init(&xcdev->cdev, &cdev_fops);
-    xt_printk("cdev_init end!\n");
+
     ret = cdev_add(&xcdev->cdev, xcdev->devid, 1);
     if (ret < 0){
         printk("add cdev failed\n");
         goto fail_add_cdev;
     }
-    xt_printk("cdev_add end!\n");
+
     xt_printk("xcdev 0x%p, %u:%u, %s.\n",
 		xcdev, xcdev->major, xcdev->minor, xcdev->cdev.kobj.name);
 
@@ -213,7 +213,7 @@ int xtic_cdev_create_interfaces(struct xtic_cdev *xcdev)
         xcdev->major = MAJOR(xcdev->devid);
         xcdev->minor = MINOR(xcdev->devid);
     }
-    xt_printk("create_xcdev start!\n");
+
     ret = create_xcdev(xcdev);
     if (ret < 0) {
 		pr_err("create_char_dev failed\n");

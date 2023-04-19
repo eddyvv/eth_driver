@@ -96,6 +96,7 @@ static int __dma_txq_init(struct net_device *ndev, struct axienet_dma_q *q)
 	q->tx_bd_ci = 0;
 	q->tx_bd_tail = 0;
 
+    /* 分配连续的一段空间用于存储缓冲区描述符 */
 	q->tx_bd_v = dma_alloc_coherent(ndev->dev.parent,
 					sizeof(*q->tx_bd_v) * lp->tx_bd_num,
 					&q->tx_bd_p, GFP_KERNEL);
@@ -129,6 +130,7 @@ static int __dma_txq_init(struct net_device *ndev, struct axienet_dma_q *q)
 	cr = (((cr & ~XAXIDMA_DELAY_MASK)) |
 	      (XAXIDMA_DFT_TX_WAITBOUND << XAXIDMA_DELAY_SHIFT));
 	/* Enable coalesce, delay timer and error interrupts */
+    /* 使能中断 */
 	cr |= XAXIDMA_IRQ_ALL_MASK;
 	/* Write to the Tx channel control register */
 	axienet_dma_out32(q, XAXIDMA_TX_CR_OFFSET, cr);
@@ -137,8 +139,10 @@ static int __dma_txq_init(struct net_device *ndev, struct axienet_dma_q *q)
 	 * Tx channel is now ready to run. But only after we write to the
 	 * tail pointer register that the Tx channel will start transmitting.
 	 */
+    /* 配置描述符地址 */
 	axienet_dma_bdout(q, XAXIDMA_TX_CDESC_OFFSET, q->tx_bd_p);
 	cr = axienet_dma_in32(q, XAXIDMA_TX_CR_OFFSET);
+    /* 启动传输 */
 	axienet_dma_out32(q, XAXIDMA_TX_CR_OFFSET,
 			  cr | XAXIDMA_CR_RUNSTOP_MASK);
 	return 0;

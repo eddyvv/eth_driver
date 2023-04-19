@@ -909,10 +909,10 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     /* 设置PCI主控制器模式，并启用DMA传输 */
     pci_set_master(pdev);
     /* 设置PCI DMA功能 */
-    // err = set_dma_caps(pdev);
-    // if (err) {
-    //     xtenet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
-    // }
+    err = set_dma_caps(pdev);
+    if (err) {
+        xtenet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
+    }
     /* 映射bar0至虚拟地址空间 */
     dev->regs = pci_ioremap_bar(pdev, BAR_0);
     dev->axidma_regs = dev->regs + AXIDMA_1_BASE;

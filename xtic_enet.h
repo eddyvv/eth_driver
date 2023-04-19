@@ -428,21 +428,12 @@ struct axienet_dma_q {
 	dma_addr_t tx_bufs_dma;
 	bool eth_hasdre;
 
-	u32 tx_bd_ci;
-	u32 rx_bd_ci;
-	u32 tx_bd_tail;
+	u32 tx_bd_ci;   /* 正在填充的发送环 */
+	u32 rx_bd_ci;   /* 正在处理的接受环 */
+	u32 tx_bd_tail; /* 正在DMA处理的发送环 */
 
-	/* MCDMA fields */
-#ifdef CONFIG_XILINX_TSN
-#define MCDMA_MGMT_CHAN		BIT(0)
-#define MCDMA_MGMT_CHAN_PORT0	BIT(1)
-#define MCDMA_MGMT_CHAN_PORT1	BIT(2)
-	u32 flags;
-#endif
 	u16 chan_id;
 	u32 rx_offset;
-	// struct aximcdma_bd *txq_bd_v;
-	// struct aximcdma_bd *rxq_bd_v;
 
 	unsigned long tx_packets;
 	unsigned long tx_bytes;
@@ -552,8 +543,8 @@ struct axienet_local {
 
     u32 features;
 
-    u16 tx_bd_num;
-    u32 rx_bd_num;
+    u16 tx_bd_num;  /* TX描述符数量 */
+    u32 rx_bd_num;  /* RX描述符数量 */
 
     bool eth_hasnobuf;
 
