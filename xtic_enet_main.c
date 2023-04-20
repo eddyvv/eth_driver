@@ -467,6 +467,7 @@ int axienet_queue_xmit(struct sk_buff *skb,
 	unsigned long flags;
 	struct axienet_dma_q *q;
 
+    xt_printk("%s start\n",__func__);
     if (lp->axienet_config->mactype == XAXIENET_10G_25G ||
 	    lp->axienet_config->mactype == XAXIENET_MRMAC) {
 		/* Need to manually pad the small frames in case of XXV MAC
@@ -560,6 +561,8 @@ out:
 
     spin_unlock_irqrestore(&q->tx_lock, flags);
 
+    xt_printk("%s start\n",__func__);
+
     return NETDEV_TX_OK;
 }
 
@@ -638,9 +641,7 @@ void axienet_start_xmit_done(struct net_device *ndev,
 static int xticenet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
     u16 map = skb_get_queue_mapping(skb); /* Single dma queue default*/
-    xt_printk("%s start\n",__func__);
 
-    xt_printk("%s end\n",__func__);
     return axienet_queue_xmit(skb, ndev, map);
 }
 
@@ -716,6 +717,7 @@ static void xticenet_poll_controller(struct net_device *ndev)
 {
     struct axienet_local *lp = netdev_priv(ndev);
 	int i;
+    xt_printk("%s start\n", __func__);
 	for_each_tx_dma_queue(lp, i)
 		disable_irq(lp->dq[i]->tx_irq);
 	for_each_rx_dma_queue(lp, i)
@@ -732,6 +734,7 @@ static void xticenet_poll_controller(struct net_device *ndev)
 		enable_irq(lp->dq[i]->tx_irq);
 	for_each_rx_dma_queue(lp, i)
 		enable_irq(lp->dq[i]->rx_irq);
+    xt_printk("%s end\n", __func__);
 }
 #endif
 
