@@ -1291,7 +1291,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     xt_printk("%s start!\n", __func__);
 
     /* 申请用于存放xtenet设备的空间 */
-    ndev = alloc_etherdev(sizeof(struct axienet_local));
+    ndev = alloc_etherdev_mq(sizeof(struct axienet_local), num_queues);
     if (!ndev) {
         xtenet_core_err(lp, "error alloc_etherdev for net_device\n");
         return -ENOMEM;
