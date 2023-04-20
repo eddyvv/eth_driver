@@ -12,13 +12,8 @@
 
 #define RX_MEM					0x2580
 
-#if defined(CONFIG_XTIC_TSN)
-#define XTIC_MAX_QUEUES         5
-#elif defined(CONFIG_AXIENET_HAS_MCDMA)
 #define XTIC_MAX_QUEUES         16
-#else
-#define XTIC_MAX_QUEUES         1
-#endif
+
 
 
 
