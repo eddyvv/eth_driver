@@ -1319,10 +1319,10 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     u16 num_queues = XTIC_MAX_QUEUES;
 
     xt_printk("%s start!\n", __func__);
-#if defined(LINUX_5_15)
-    xt_printk("define LINUX_5_15\n");
-#elif defineddefined(LINUX_5_4)
+#if defined(LINUX_5_4)
     xt_printk("define LINUX_5_4\n");
+#elif defined(LINUX_5_15)
+    xt_printk("define LINUX_5_15\n");
 #endif
     /* 申请用于存放xtenet设备的空间 */
     ndev = alloc_etherdev_mq(sizeof(struct axienet_local), num_queues);
