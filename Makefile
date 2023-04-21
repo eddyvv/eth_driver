@@ -4,6 +4,12 @@ CURRENT_PATH := $(shell pwd)
 CURRENT_KERNEL_VERSION := $(shell uname -r)
 KERNEL_VERSION_5_15 := 5.15.0-60-generic
 
+ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_15))
+EXTRA_CFLAGS += -DLINUX_5_15
+else
+EXTRA_CFLAGS += -DLINUX_5_4
+endif
+
 BUILD_DIR := build
 MODULE_NAME := xtic_nic
 ccflags-y += -I$(shell pwd)

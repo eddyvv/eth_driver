@@ -11,24 +11,6 @@
 #include "xtic_enet_config.h"
 
 
-// #define LINUX_5_4
-#define LINUX_5_15
-#define XTIC_DEBUG
-
-
-#if defined(LINUX_5_15)
-
-// #define PCI_VENDOR_ID_XTIC 0x1057
-// #define PCI_DEVICE_ID_XTIC 0x0004
-#define PCI_VENDOR_ID_XTIC 0x8086
-#define PCI_DEVICE_ID_XTIC 0x100f
-#elif defined(LINUX_5_4)
-/* VENDOR_ID 0x10ee DEVICE_ID 0x903f */
-#define PCI_VENDOR_ID_XTIC 0x10ee
-#define PCI_DEVICE_ID_XTIC 0x9038
-#endif
-
-
 
 #ifndef XTIC_DEBUG
 #define xt_printk
@@ -44,10 +26,6 @@
 
 
 
-#define XDMA0_CTRL_BASE     0x00000000
-#define XDMA0_B_BASE     0x76000000
-#define AXIDMA_1_BASE   0x41e00000
-#define XXV_ETHERNET_0_BASE   0x44A40000
 
 
 #define XILINX_IOC_MAGIC                              'D'
@@ -692,13 +670,38 @@ static inline void axienet_dma_out32(struct axienet_dma_q *q,
 }
 
 /*
+ * xxv register write
+ */
+static inline void axienet_xxv_iow(struct axienet_local *lp, off_t offset,
+                   u32 value)
+{
+#ifdef WRITE_REG
+    iowrite32(value, lp->xxv_regs + offset);
+#else
+    return;
+#endif//WRITE_REG
+}
+
+/*
+ * xxv register read
+ */
+static inline u32 axienet_xxv_ior(struct axienet_local *lp, off_t offset)
+{
+#ifdef WRITE_REG
+    return ioread32(lp->xxv_regs + offset);
+#else
+    return 0;
+#endif//WRITE_REG
+}
+
+/*
  * register write
  */
 static inline void axienet_iow(struct axienet_local *lp, off_t offset,
                    u32 value)
 {
 #ifdef WRITE_REG
-    iowrite32(value, lp->regs + offset);
+    iowrite32(value, lp->xxv_regs + offset);
 #else
     return;
 #endif//WRITE_REG
@@ -707,16 +710,14 @@ static inline void axienet_iow(struct axienet_local *lp, off_t offset,
 /*
  * register read
  */
-static inline u32 xtenet_ior(struct axienet_local *lp, off_t offset)
+static inline u32 axienet_ior(struct axienet_local *lp, off_t offset)
 {
 #ifdef WRITE_REG
-    return ioread32(lp->regs + offset);
+    return ioread32(lp->xxv_regs + offset);
 #else
     return 0;
 #endif//WRITE_REG
 }
-
-
 
 
 

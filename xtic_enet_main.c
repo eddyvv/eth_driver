@@ -62,10 +62,10 @@ static void xxvenet_setoptions(struct net_device *ndev, u32 options)
     tp = &xxvenet_options[0];
 
 	while (tp->opt) {
-		reg = ((xtenet_ior(lp, tp->reg)) & ~(tp->m_or));
+		reg = ((axienet_xxv_ior(lp, tp->reg)) & ~(tp->m_or));
 		if (options & tp->opt)
 			reg |= tp->m_or;
-		axienet_iow(lp, tp->reg, reg);
+		axienet_xxv_iow(lp, tp->reg, reg);
 		tp++;
 	}
 
@@ -144,14 +144,14 @@ static void xtnet_device_reset(struct net_device *ndev)
     xt_printk("%s start\n", __func__);
     if (lp->axienet_config->mactype == XAXIENET_10G_25G) {
 		/* Reset the XXV MAC */
-		val = xtenet_ior(lp, XXV_GT_RESET_OFFSET);
+		val = axienet_xxv_ior(lp, XXV_GT_RESET_OFFSET);
 		val |= XXV_GT_RESET_MASK;
-		axienet_iow(lp, XXV_GT_RESET_OFFSET, val);
+		axienet_xxv_iow(lp, XXV_GT_RESET_OFFSET, val);
 		/* Wait for 1ms for GT reset to complete as per spec */
 		mdelay(1);
-		val = xtenet_ior(lp, XXV_GT_RESET_OFFSET);
+		val = axienet_xxv_ior(lp, XXV_GT_RESET_OFFSET);
 		val &= ~XXV_GT_RESET_MASK;
-		axienet_iow(lp, XXV_GT_RESET_OFFSET, val);
+		axienet_xxv_iow(lp, XXV_GT_RESET_OFFSET, val);
 	}
 
     if (!lp->is_tsn) {
@@ -278,9 +278,9 @@ static int xtenet_open(struct net_device *ndev)
 
     if (lp->phy_mode == XXE_PHY_TYPE_USXGMII) {
         netdev_dbg(ndev, "RX reg: 0x%x\n",
-			   xtenet_ior(lp, XXV_RCW1_OFFSET));
+			   axienet_xxv_ior(lp, XXV_RCW1_OFFSET));
 		/* USXGMII setup at selected speed */
-		reg = xtenet_ior(lp, XXV_USXGMII_AN_OFFSET);
+		reg = axienet_xxv_ior(lp, XXV_USXGMII_AN_OFFSET);
 		reg &= ~USXGMII_RATE_MASK;
 		netdev_dbg(ndev, "usxgmii_rate %d\n", lp->usxgmii_rate);
 		switch (lp->usxgmii_rate) {
@@ -307,19 +307,19 @@ static int xtenet_open(struct net_device *ndev)
 		}
         reg |= USXGMII_FD;
 		reg |= (USXGMII_EN | USXGMII_LINK_STS);
-		axienet_iow(lp, XXV_USXGMII_AN_OFFSET, reg);
+		axienet_xxv_iow(lp, XXV_USXGMII_AN_OFFSET, reg);
 		reg |= USXGMII_AN_EN;
-		axienet_iow(lp, XXV_USXGMII_AN_OFFSET, reg);
+		axienet_xxv_iow(lp, XXV_USXGMII_AN_OFFSET, reg);
 		/* AN Restart bit should be reset, set and then reset as per
 		 * spec with a 1 ms delay for a raising edge trigger
 		 */
-		axienet_iow(lp, XXV_USXGMII_AN_OFFSET,
+		axienet_xxv_iow(lp, XXV_USXGMII_AN_OFFSET,
 			    reg & ~USXGMII_AN_RESTART);
 		mdelay(1);
-		axienet_iow(lp, XXV_USXGMII_AN_OFFSET,
+		axienet_xxv_iow(lp, XXV_USXGMII_AN_OFFSET,
 			    reg | USXGMII_AN_RESTART);
 		mdelay(1);
-		axienet_iow(lp, XXV_USXGMII_AN_OFFSET,
+		axienet_xxv_iow(lp, XXV_USXGMII_AN_OFFSET,
 			    reg & ~USXGMII_AN_RESTART);
         /* Check block lock bit to make sure RX path is ok with
 		 * USXGMII initialization.
@@ -393,7 +393,7 @@ static int xticenet_stop(struct net_device *ndev)
 			cr &= ~(XAXIDMA_CR_RUNSTOP_MASK | XAXIDMA_IRQ_ALL_MASK);
 			axienet_dma_out32(q, XAXIDMA_TX_CR_OFFSET, cr);
 
-			axienet_iow(lp, XAE_IE_OFFSET, 0);
+			axienet_xxv_iow(lp, XAE_IE_OFFSET, 0);
 			/* Give DMAs a chance to halt gracefully */
 			sr = axienet_dma_in32(q, XAXIDMA_RX_SR_OFFSET);
 			for (count = 0; !(sr & XAXIDMA_SR_HALT_MASK) && count < 5; ++count) {
@@ -864,8 +864,8 @@ static void skel_get_configs(struct pci_dev *pdev)
     pci_read_config_byte(pdev, PCI_INTERRUPT_PIN, &val1);
     xt_printk("pci_irq_line:0x%x\n",val1);
 
-    axienet_iow(dev, 0, 0x0);
-    reg_0 = xtenet_ior(dev, 0x110c);
+    axienet_xxv_iow(dev, 0, 0x0);
+    reg_0 = axienet_xxv_ior(dev, 0x110c);
     xt_printk("reg_0 = 0x%x\n",reg_0);
 
 }
@@ -892,13 +892,13 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     dev->axidma_addr = dev->bar_addr + AXIDMA_1_BASE;
     dev->xdma_addr = dev->bar_addr + XDMA0_CTRL_BASE;
     dev->xxv_addr = dev->bar_addr + XXV_ETHERNET_0_BASE;
-    xt_printk("bar0 = 0x%llx\n", dev->bar_addr);
+    xt_printk("bar0 \t\t= 0x%llx\n", dev->bar_addr);
     xt_printk("dev->axidma_addr = 0x%llx\n", dev->axidma_addr);
-    xt_printk("dev->xdma_addr = 0x%llx\n", dev->xdma_addr);
-    xt_printk("dev->xxv_addr = 0x%llx\n", dev->xxv_addr);
+    xt_printk("dev->xdma_addr \t= 0x%llx\n", dev->xdma_addr);
+    xt_printk("dev->xxv_addr \t= 0x%llx\n", dev->xxv_addr);
 
     dev->bar_size = pci_resource_len(pdev, 0);
-    xt_printk("bar0 size = 0x%x\n", dev->bar_size);
+    xt_printk("bar0 size \t= 0x%x\n", dev->bar_size);
     /* 请求PCI资源 */
     err = request_bar(pdev);
     if (err) {
@@ -921,10 +921,10 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     dev->axidma_regs = dev->regs + AXIDMA_1_BASE;
     dev->xdma_regs = dev->regs + XDMA0_CTRL_BASE;
     dev->xxv_regs = dev->regs + XXV_ETHERNET_0_BASE;
-    xt_printk("dev->regs = 0x%x\n",(unsigned int)(long)dev->regs);
+    xt_printk("dev->regs \t= 0x%x\n",(unsigned int)(long)dev->regs);
     xt_printk("dev->axidma_regs = 0x%x\n",(unsigned int)(long)dev->axidma_regs);
-    xt_printk("dev->xdma_regs = 0x%x\n",(unsigned int)(long)dev->xdma_regs);
-    xt_printk("dev->xxv_regs = 0x%x\n",(unsigned int)(long)dev->xxv_regs);
+    xt_printk("dev->xdma_regs \t= 0x%x\n",(unsigned int)(long)dev->xdma_regs);
+    xt_printk("dev->xxv_regs \t= 0x%x\n",(unsigned int)(long)dev->xxv_regs);
     if (!dev->regs){
         xtenet_core_err(dev, "Failed pci_ioremap_bar\n");
         goto xt_err_clr_master;
@@ -1229,7 +1229,6 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
 
 		ATOMIC_INIT_NOTIFIER_HEAD(&irq->nh);
 
-		// ret = pci_request_irq(pdev, k, xtnet_irq_handler, NULL, irq, "xtnet");
         ret = request_irq(pci_irq_vector(pdev, k), xtnet_irq_handler, 0, "xtnet", ndev);
 		if (ret < 0) {
 			kfree(irq);
@@ -1320,7 +1319,11 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     u16 num_queues = XTIC_MAX_QUEUES;
 
     xt_printk("%s start!\n", __func__);
-
+#if defined(LINUX_5_15)
+    xt_printk("define LINUX_5_15\n");
+#elif defineddefined(LINUX_5_4)
+    xt_printk("define LINUX_5_4\n");
+#endif
     /* 申请用于存放xtenet设备的空间 */
     ndev = alloc_etherdev_mq(sizeof(struct axienet_local), num_queues);
     if (!ndev) {
