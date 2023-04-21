@@ -1129,6 +1129,7 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
     return work_done;
 }
 
+#if defined(LINUX_5_15)
 /**
  * axienet_ethtools_set_coalesce - Set DMA interrupt coalescing count.
  * @ndev:	Pointer to net_device structure
@@ -1148,9 +1149,31 @@ static int axienet_ethtools_set_coalesce(struct net_device *ndec,
 
 	return 0;
 }
+#endif
+
+#if defined(LINUX_5_4)
+/**
+ * axienet_ethtools_set_coalesce - Set DMA interrupt coalescing count.
+ * @ndev:	Pointer to net_device structure
+ * @ecoalesce:	Pointer to ethtool_coalesce structure
+ *
+ * This implements ethtool command for setting the DMA interrupt coalescing
+ * count on Tx and Rx paths. Issue "ethtool -C ethX rx-frames 5" under linux
+ * prompt to execute this function.
+ *
+ * Return: 0, on success, Non-zero error value on failure.
+ */
+static int axienet_ethtools_set_coalesce(struct net_device *ndev,
+					 struct ethtool_coalesce *ecoalesce)
+{
+    return 0;
+}
+#endif // LINUX_5_4
 
 static const struct ethtool_ops xtnet_ethtool_ops = {
-    .supported_coalesce_params = ETHTOOL_COALESCE_MAX_FRAMES,
+#if defined(LINUX_5_15)
+     .supported_coalesce_params = ETHTOOL_COALESCE_MAX_FRAMES,
+#endif
 // 	.get_drvinfo    = axienet_ethtools_get_drvinfo,
 // 	.get_regs_len   = axienet_ethtools_get_regs_len,
 // 	.get_regs       = axienet_ethtools_get_regs,
@@ -1181,15 +1204,20 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
     int ret = 0;
     int k;
     // Allocate MSI IRQs
-	// dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI | PCI_IRQ_MSIX);
-	// if (dev->eth_irq < 0) {
-	// 	xtenet_core_err(dev, "Failed to allocate IRQs");
-	// 	return -ENOMEM;
-	// }
+#if defined(LINUX_5_4)
+	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTIC_PCIE_MAX_IRQ, PCI_IRQ_MSI | PCI_IRQ_MSIX);
+	if (dev->eth_irq < 0) {
+		xtenet_core_err(dev, "Failed to allocate IRQs");
+		return -ENOMEM;
+	}
+#endif
 
     // Set up interrupts
-	 //for (k = 0; k < dev->eth_irq; k++)
-     for (k = 0; k < 1; k++)
+#if defined(LINUX_5_4)
+    for (k = 0; k < dev->eth_irq; k++)
+#elif defined(LINUX_5_15)
+    for (k = 0; k < 1; k++)
+#endif
     {
 		struct xtnet_irq *irq;
 

@@ -7,17 +7,28 @@
 #include <linux/phy.h>
 #include <linux/if_vlan.h>
 #include <linux/cdev.h>
+#include <linux/version.h>
 #include "xtic_enet_config.h"
 
 
-/* VENDOR_ID 0x10ee DEVICE_ID 0x903f */
+// #define LINUX_5_4
+#define LINUX_5_15
+#define XTIC_DEBUG
+
+
+#if defined(LINUX_5_15)
+
 // #define PCI_VENDOR_ID_XTIC 0x1057
 // #define PCI_DEVICE_ID_XTIC 0x0004
 #define PCI_VENDOR_ID_XTIC 0x8086
 #define PCI_DEVICE_ID_XTIC 0x100f
+#elif defined(LINUX_5_4)
+/* VENDOR_ID 0x10ee DEVICE_ID 0x903f */
+#define PCI_VENDOR_ID_XTIC 0x10ee
+#define PCI_DEVICE_ID_XTIC 0x9038
+#endif
 
 
-#define XTIC_DEBUG
 
 #ifndef XTIC_DEBUG
 #define xt_printk
