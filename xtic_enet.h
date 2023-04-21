@@ -11,6 +11,11 @@
 
 
 /* VENDOR_ID 0x10ee DEVICE_ID 0x903f */
+// #define PCI_VENDOR_ID_XTIC 0x1057
+// #define PCI_DEVICE_ID_XTIC 0x0004
+#define PCI_VENDOR_ID_XTIC 0x8086
+#define PCI_DEVICE_ID_XTIC 0x100f
+
 
 #define XTIC_DEBUG
 
@@ -26,10 +31,7 @@
         __func__, __LINE__, current->pid,       \
            ##__VA_ARGS__)
 
-// #define PCI_VENDOR_ID_XTIC 0x1057
-// #define PCI_DEVICE_ID_XTIC 0x0004
-#define PCI_VENDOR_ID_XTIC 0x8086
-#define PCI_DEVICE_ID_XTIC 0x100f
+
 
 #define XDMA0_CTRL_BASE     0x00000000
 #define XDMA0_B_BASE     0x76000000
