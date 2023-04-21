@@ -21,7 +21,6 @@
 #define AXIDMA_1_BASE         0x00200000
 #define XXV_ETHERNET_0_BASE   0x00100000
 
-
 #define XTIC_ENABLE_TSN     true
 #define XTIC_DISABLE_TSN    false
 

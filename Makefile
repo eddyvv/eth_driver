@@ -12,7 +12,6 @@ ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_4))
 EXTRA_CFLAGS += -DLINUX_5_4
 endif
 
-BUILD_DIR := build
 MODULE_NAME := xtic_nic
 ccflags-y += -I$(shell pwd)
 
