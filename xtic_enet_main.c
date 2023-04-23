@@ -240,9 +240,11 @@ static int xtenet_open(struct net_device *ndev)
     struct axienet_dma_q *q;
     xt_printk("%s start\n",__func__);
     xtnet_device_reset(ndev);
-
-    // if (!lp->is_tsn) {
-        if (lp->is_tsn) {
+#if defined(LINUX_5_4)
+    if (!lp->is_tsn) {
+#elif defined(LINUX_5_15)
+    if (lp->is_tsn) {
+#endif
         /* DMA配置 */
         /* Enable tasklets for Axi DMA error handling */
 		for_each_rx_dma_queue(lp, i) {
@@ -259,15 +261,16 @@ static int xtenet_open(struct net_device *ndev)
             */
             //  napi_enable(&lp->napi[i]);
         }
-        for_each_tx_dma_queue(lp, i) {
-			struct axienet_dma_q *q = lp->dq[i];
-            /* Enable interrupts for Axi DMA Tx */
-			ret = request_irq(q->tx_irq, axienet_tx_irq,
-					  0, ndev->name, ndev);
-			if (ret)
-				goto err_tx_irq;
-        }
+        // for_each_tx_dma_queue(lp, i) {
+		// 	struct axienet_dma_q *q = lp->dq[i];
+        //     /* Enable interrupts for Axi DMA Tx */
+		// 	ret = request_irq(q->tx_irq, axienet_tx_irq,
+		// 			  0, ndev->name, ndev);
+		// 	if (ret)
+		// 		goto err_tx_irq;
+        // }
         for_each_rx_dma_queue(lp, i) {
+            struct axienet_dma_q *q = lp->dq[i];
             /* Enable interrupts for Axi DMA Rx */
                 ret = request_irq(q->rx_irq, axienet_rx_irq,
                         0, ndev->name, ndev);
@@ -965,16 +968,22 @@ void xtnet_irq_deinit_pcie(struct axienet_local *dev)
 	struct pci_dev *pdev = dev->pdev;
     struct net_device *ndev = dev->ndev;
 	int k;
-
-	 for (k = 0; k < 1; k++)
+#if defined(LINUX_5_4)
+	for (k = 0; k < dev->eth_irq; k++)
     {
-		if (dev->irq[k]) {
-            free_irq(pdev->irq, ndev);
-			// pci_free_irq(pdev, k, dev->irq[k]);
-			kfree(dev->irq[k]);
-			dev->irq[k] = NULL;
+		if (dev->irqn[k]) {
+            pci_free_irq(pdev, k, dev->irqn[k]);
+			dev->irqn[k] = 0;
 		}
 	}
+#elif defined(LINUX_5_15)
+    for (k = 0; k < 1; k++)
+    {
+		if (dev->irqn[k]) {
+			dev->irqn[k] = 0;
+		}
+	}
+#endif
 	pci_free_irq_vectors(pdev);
 }
 
@@ -1204,7 +1213,7 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
     int k;
     // Allocate MSI IRQs
 #if defined(LINUX_5_4)
-	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTIC_PCIE_MAX_IRQ, PCI_IRQ_MSI | PCI_IRQ_MSIX);
+	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTIC_PCIE_MAX_IRQ, PCI_IRQ_MSI);
 	if (dev->eth_irq < 0) {
 		xtenet_core_err(dev, "Failed to allocate IRQs");
 		return -ENOMEM;
@@ -1218,28 +1227,10 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
     for (k = 0; k < 1; k++)
 #endif
     {
-		struct xtnet_irq *irq;
-
-		irq = kzalloc(sizeof(*irq), GFP_KERNEL);
-		if (!irq) {
-			ret = -ENOMEM;
-			goto fail;
-		}
-
-		ATOMIC_INIT_NOTIFIER_HEAD(&irq->nh);
-
-        ret = request_irq(pci_irq_vector(pdev, k), xtnet_irq_handler, 0, "xtnet", ndev);
-		if (ret < 0) {
-			kfree(irq);
-			ret = -ENOMEM;
-			xtenet_core_err(dev, "Failed to request IRQ %d", k);
-			goto fail;
-		}
-
-		irq->index = k;
-		irq->irqn = pci_irq_vector(pdev, k);
-		dev->irq[k] = irq;
-        xt_printk("dev->irq[%d] = %d\n",k, irq->irqn);
+        struct axienet_dma_q *q = dev->dq[k];
+        dev->irqn[k] = pci_irq_vector(pdev, k);
+        q->rx_irq = pci_irq_vector(pdev, k);
+        xt_printk("q->rx_irq = %d\n", q->rx_irq);
 	}
 	return 0;
 fail:
@@ -1270,7 +1261,6 @@ static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
 		q = devm_kzalloc(&pdev->dev, sizeof(*q), GFP_KERNEL);
 		if (!q)
 			return -ENOMEM;
-
 		/* parent */
 		q->lp = lp;
 
@@ -1281,14 +1271,9 @@ static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
 	/* TODO handle error ret */
 	for_each_rx_dma_queue(lp, i) {
 		q = lp->dq[i];
-
         q->dma_regs = lp->axidma_regs;
         q->eth_hasdre = true;
         lp->dma_mask = XAE_DMA_MASK_MIN;
-
-        /* 中断号获取,需根据硬件中断好进行映射 */
-        // lp->dq[i]->tx_irq = 51;
-		// lp->dq[i]->rx_irq = 52;
     }
 
     for_each_rx_dma_queue(lp, i) {

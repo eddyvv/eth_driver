@@ -300,13 +300,6 @@ struct xxvenet_option {
 	u32 m_or;
 };
 
-struct xtnet_irq {
-	int index;
-	int irqn;
-	char name[16 + 3];
-	struct atomic_notifier_head nh;
-};
-
 /**
  * struct axidma_bd - Axi Dma buffer descriptor layout
  * @next:         MM2S/S2MM Next Descriptor Pointer
@@ -534,7 +527,7 @@ struct axienet_local {
     u32 max_frm_size;
 
     int eth_irq;
-    struct xtnet_irq *irq[XTNET_MAX_IRQ];
+    int irqn[2];
 
     u8 mac_addr[NODE_ADDRESS_SIZE];
     u32 coalesce_count_rx;
