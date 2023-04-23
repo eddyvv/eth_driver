@@ -867,8 +867,11 @@ static void skel_get_configs(struct pci_dev *pdev)
     pci_read_config_byte(pdev, PCI_INTERRUPT_PIN, &val1);
     xt_printk("pci_irq_line:0x%x\n",val1);
 
-    reg_0 = axienet_xxv_ior(dev, 0x110c);
-    xt_printk("reg_0 = 0x%x\n",reg_0);
+    reg_0 = axienet_xxv_ior(dev, 0x0);
+    xt_printk("0x00100000 Value = 0x%x\n",reg_0);
+
+    reg_0 = axienet_dma_in32(dev, 0x34);
+    xt_printk("0x00200034 Value = 0x%x\n",reg_0);
 
 }
 /**
