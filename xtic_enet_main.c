@@ -259,16 +259,16 @@ static int xtenet_open(struct net_device *ndev)
             * RX IRQs will be processed as only the NAPI function
             * re-enables them!
             */
-            //  napi_enable(&lp->napi[i]);
+             napi_enable(&lp->napi[i]);
         }
-        // for_each_tx_dma_queue(lp, i) {
-		// 	struct axienet_dma_q *q = lp->dq[i];
-        //     /* Enable interrupts for Axi DMA Tx */
-		// 	ret = request_irq(q->tx_irq, axienet_tx_irq,
-		// 			  0, ndev->name, ndev);
-		// 	if (ret)
-		// 		goto err_tx_irq;
-        // }
+        for_each_tx_dma_queue(lp, i) {
+			struct axienet_dma_q *q = lp->dq[i];
+            /* Enable interrupts for Axi DMA Tx */
+			ret = request_irq(q->tx_irq, axienet_tx_irq,
+					  0, ndev->name, ndev);
+			if (ret)
+				goto err_tx_irq;
+        }
         for_each_rx_dma_queue(lp, i) {
             struct axienet_dma_q *q = lp->dq[i];
             /* Enable interrupts for Axi DMA Rx */
@@ -355,8 +355,7 @@ static int xtenet_open(struct net_device *ndev)
 
 err_eth_irq:
     while (i--) {
-		q = lp->dq[i];
-		// free_irq(q->rx_irq, ndev);
+		// pci_free_irq(pdev, k, dev->irqn[k]);
 	}
 	i = lp->num_tx_queues;
 err_rx_irq:
@@ -1201,8 +1200,7 @@ static const struct ethtool_ops xtnet_ethtool_ops = {
 static int xtnet_irq_init_pcie(struct axienet_local *dev)
 {
     struct pci_dev *pdev = dev->pdev;
-    int ret = 0;
-    int k;
+    int i;
     // Allocate MSI IRQs
 #if defined(LINUX_5_4)
 	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTIC_PCIE_MAX_IRQ, PCI_IRQ_MSI);
@@ -1212,17 +1210,21 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
 		return -ENOMEM;
 	}
 #endif
+    dev->irqn[0] = pci_irq_vector(pdev, 0);
 
     // Set up interrupts
 #if defined(LINUX_5_4)
-    for (k = 0; k < dev->eth_irq; k++)
+    dev->irqn[1] = pci_irq_vector(pdev, 1);
+    for_each_rx_dma_queue(lp, i)
 #elif defined(LINUX_5_15)
-    for (k = 0; k < 1; k++)
+    for (i = 0; i < 1; i++)
 #endif
     {
-        struct axienet_dma_q *q = dev->dq[k];
-        dev->irqn[k] = pci_irq_vector(pdev, k);
-        q->rx_irq = pci_irq_vector(pdev, k);
+        struct axienet_dma_q *q = dev->dq[i];
+
+        q->tx_irq = dev->irqn[0];
+        q->rx_irq = dev->irqn[1];
+        xt_printk("q->tx_irq = %d\n", q->tx_irq);
         xt_printk("q->rx_irq = %d\n", q->rx_irq);
 	}
 	return 0;
