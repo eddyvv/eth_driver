@@ -355,17 +355,17 @@ static int xtenet_open(struct net_device *ndev)
 
 err_eth_irq:
     while (i--) {
-		// pci_free_irq(pdev, k, dev->irqn[k]);
+		free_irq(q->rx_irq, ndev);
 	}
 	i = lp->num_tx_queues;
 err_rx_irq:
     while (i--) {
 		q = lp->dq[i];
-		// free_irq(q->tx_irq, ndev);
+		free_irq(q->tx_irq, ndev);
 	}
 err_tx_irq:
     for_each_rx_dma_queue(lp, i)
-		// napi_disable(&lp->napi[i]);
+		napi_disable(&lp->napi[i]);
 	for_each_rx_dma_queue(lp, i)
 		tasklet_kill(&lp->dma_err_tasklet[i]);
 	dev_err(lp->dev, "request_irq() failed\n");
@@ -384,7 +384,12 @@ static int xticenet_stop(struct net_device *ndev)
 
 	lp->axienet_config->setoptions(ndev, lp->options &
 			   ~(XAE_OPTION_TXEN | XAE_OPTION_RXEN));
-    if (!lp->is_tsn) {
+#if defined(LINUX_5_4)
+    if (!lp->is_tsn)
+#elif defined(LINUX_5_15)
+    if (lp->is_tsn)
+#endif
+    {
         for_each_tx_dma_queue(lp, i) {
 			q = lp->dq[i];
 			cr = axienet_dma_in32(q, XAXIDMA_RX_CR_OFFSET);
@@ -410,14 +415,14 @@ static int xticenet_stop(struct net_device *ndev)
 			}
 
 			__axienet_device_reset(q);
-			// free_irq(q->tx_irq, ndev);
+			free_irq(q->tx_irq, ndev);
         }
         for_each_rx_dma_queue(lp, i) {
 			q = lp->dq[i];
 			netif_stop_queue(ndev);
-			// napi_disable(&lp->napi[i]);
+			napi_disable(&lp->napi[i]);
 			tasklet_kill(&lp->dma_err_tasklet[i]);
-			// free_irq(q->rx_irq, ndev);
+			free_irq(q->rx_irq, ndev);
 		}
 
         if (!lp->is_tsn)
@@ -960,15 +965,7 @@ void xtnet_irq_deinit_pcie(struct axienet_local *dev)
 {
 	struct pci_dev *pdev = dev->pdev;
 	int k;
-#if defined(LINUX_5_4)
-	for (k = 0; k < dev->eth_irq; k++)
-    {
-		if (dev->irqn[k]) {
-            pci_free_irq(pdev, k, dev->irqn[k]);
-			dev->irqn[k] = 0;
-		}
-	}
-#elif defined(LINUX_5_15)
+#if defined(LINUX_5_15)
     for (k = 0; k < 1; k++)
     {
 		if (dev->irqn[k]) {
@@ -1334,7 +1331,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     err = xtenet_pci_init(lp, pdev, id);
     if (err) {
         xtenet_core_err(lp, "xtenet_pci_init failed with error code %d\n", err);
-        goto xt_pci_init_err;
+        goto free_netdev;
     }
 
     /* 设置校验和卸载，但如果未指定，则默认为关闭 */
@@ -1411,13 +1408,13 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
         if (ret) {
 			pr_err("Getting DMA resource failed\n");
-			goto free_netdev;
+			goto xt_err_init_one;
 		}
         if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(lp->dma_mask)) != 0) {
 			dev_warn(&pdev->dev, "default to %d-bit dma mask\n", XAE_DMA_MASK_MIN);
 			if (dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(XAE_DMA_MASK_MIN)) != 0) {
 				dev_err(&pdev->dev, "dma_set_mask_and_coherent failed, aborting\n");
-				goto free_netdev;
+				goto xt_err_init_one;
 			}
 		}
     }
@@ -1425,7 +1422,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     err = xtnet_irq_init_pcie(lp);
     if (err) {
 		xtenet_core_err(lp, "Failed to set up interrupts err (%i)\n", err);
-		// goto fail_init_irq;
+		goto xt_err_init_one;
 	}
 
     axienet_set_mac_address(ndev, NULL);
@@ -1450,17 +1447,13 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err) {
 		xtenet_core_err(lp, "register_netdev() error (%i)\n", err);
 		// axienet_mdio_teardown(pdev);
-		// goto err_disable_clk;
+		goto xt_err_init_one;
 	}
-
-
-
 
     return 0;
 /* 错误处理 */
-// xt_err_init_one:
+xt_err_init_one:
     xtenet_pci_close(lp);
-xt_pci_init_err:
 free_netdev:
 	free_netdev(ndev);
     return err;
