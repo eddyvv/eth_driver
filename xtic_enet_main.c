@@ -5,7 +5,7 @@
 #include <linux/circ_buf.h>
 #include <linux/pci.h>
 #include <linux/of.h>
-//#include <linux/dev_printk.h>
+#include <linux/iopoll.h>
 #include <linux/etherdevice.h>
 char xtenet_driver_name[] = "xtenet_eth";
 static void release_bar(struct pci_dev *pdev);
@@ -870,9 +870,6 @@ static void skel_get_configs(struct pci_dev *pdev)
     reg_0 = axienet_xxv_ior(dev, 0x0);
     xt_printk("0x00100000 Value = 0x%x\n",reg_0);
 
-    reg_0 = axienet_dma_in32(dev, 0x34);
-    xt_printk("0x00200034 Value = 0x%x\n",reg_0);
-
 }
 /**
  * PCI初始化
@@ -957,19 +954,12 @@ xt_err_disable:
     return err;
 }
 
-static irqreturn_t xtnet_irq_handler(int irqn, void *data)
-{
-
-    return IRQ_HANDLED;
-}
-
 /**
  * 释放中断处理程序
  */
 void xtnet_irq_deinit_pcie(struct axienet_local *dev)
 {
 	struct pci_dev *pdev = dev->pdev;
-    struct net_device *ndev = dev->ndev;
 	int k;
 #if defined(LINUX_5_4)
 	for (k = 0; k < dev->eth_irq; k++)
@@ -1211,12 +1201,12 @@ static const struct ethtool_ops xtnet_ethtool_ops = {
 static int xtnet_irq_init_pcie(struct axienet_local *dev)
 {
     struct pci_dev *pdev = dev->pdev;
-    struct net_device *ndev = dev->ndev;
     int ret = 0;
     int k;
     // Allocate MSI IRQs
 #if defined(LINUX_5_4)
 	dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTIC_PCIE_MAX_IRQ, PCI_IRQ_MSI);
+    xt_printk("dev->eth_irq = %d\n", dev->eth_irq);
 	if (dev->eth_irq < 0) {
 		xtenet_core_err(dev, "Failed to allocate IRQs");
 		return -ENOMEM;
@@ -1236,9 +1226,6 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
         xt_printk("q->rx_irq = %d\n", q->rx_irq);
 	}
 	return 0;
-fail:
-	xtnet_irq_deinit_pcie(dev);
-	return ret;
 }
 
 /**
