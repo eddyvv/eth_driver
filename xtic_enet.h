@@ -35,6 +35,10 @@
 #define XAE_MAX_VLAN_FRAME_SIZE  (XAE_MTU + VLAN_ETH_HLEN + XAE_TRL_SIZE)
 #define XAE_MAX_JUMBO_FRAME_SIZE (XAE_JUMBO_MTU + XAE_HDR_SIZE + XAE_TRL_SIZE)
 
+#define AXIENET_ETHTOOLS_SSTATS_LEN 6
+#define AXIENET_TX_SSTATS_LEN(lp) ((lp)->num_tx_queues * 2)
+#define AXIENET_RX_SSTATS_LEN(lp) ((lp)->num_rx_queues * 2)
+
 /* DMA address width min and max range */
 #define XAE_DMA_MASK_MIN	32
 #define XAE_DMA_MASK_MAX	64

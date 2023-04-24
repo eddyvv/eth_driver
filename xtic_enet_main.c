@@ -8,6 +8,13 @@
 #include <linux/iopoll.h>
 #include <linux/etherdevice.h>
 char xtenet_driver_name[] = "xtenet_eth";
+
+#define DRIVER_NAME		"xaxienet"
+#define DRIVER_DESCRIPTION	"Xilinx Axi Ethernet driver"
+#define DRIVER_VERSION		"1.00a"
+
+#define AXIENET_REGS_N		40
+
 static void release_bar(struct pci_dev *pdev);
 void axienet_set_mac_address(struct net_device *ndev, const void *address);
 void axienet_set_multicast_list(struct net_device *ndev);
@@ -50,6 +57,19 @@ static struct xxvenet_option xxvenet_options[] = {
 		.m_or = XXV_RCW1_RX_MASK,
 	},
 	{}
+};
+
+struct axienet_ethtools_stat {
+	const char *name;
+};
+
+static struct axienet_ethtools_stat axienet_get_ethtools_strings_stats[] = {
+	{ "tx_packets" },
+	{ "rx_packets" },
+	{ "tx_bytes" },
+	{ "rx_bytes" },
+	{ "tx_errors" },
+	{ "rx_errors" },
 };
 
 static void xxvenet_setoptions(struct net_device *ndev, u32 options)
@@ -1126,6 +1146,134 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
     return work_done;
 }
 
+/**
+ * axienet_ethtools_get_drvinfo - Get various Axi Ethernet driver information.
+ * @ndev:	Pointer to net_device structure
+ * @ed:		Pointer to ethtool_drvinfo structure
+ *
+ * This implements ethtool command for getting the driver information.
+ * Issue "ethtool -i ethX" under linux prompt to execute this function.
+ */
+static void axienet_ethtools_get_drvinfo(struct net_device *ndev,
+					 struct ethtool_drvinfo *ed)
+{
+	strlcpy(ed->driver, DRIVER_NAME, sizeof(ed->driver));
+	strlcpy(ed->version, DRIVER_VERSION, sizeof(ed->version));
+}
+
+/**
+ * axienet_ethtools_get_regs_len - Get the total regs length present in the
+ *				   AxiEthernet core.
+ * @ndev:	Pointer to net_device structure
+ *
+ * This implements ethtool command for getting the total register length
+ * information.
+ *
+ * Return: the total regs length
+ */
+static int axienet_ethtools_get_regs_len(struct net_device *ndev)
+{
+	return sizeof(u32) * AXIENET_REGS_N;
+}
+
+
+static void axienet_ethtools_get_ringparam(struct net_device *ndev,
+					   struct ethtool_ringparam *ering)
+{
+	struct axienet_local *lp = netdev_priv(ndev);
+
+	ering->rx_max_pending = RX_BD_NUM_MAX;
+	ering->rx_mini_max_pending = 0;
+	ering->rx_jumbo_max_pending = 0;
+	ering->tx_max_pending = TX_BD_NUM_MAX;
+	ering->rx_pending = lp->rx_bd_num;
+	ering->rx_mini_pending = 0;
+	ering->rx_jumbo_pending = 0;
+	ering->tx_pending = lp->tx_bd_num;
+}
+
+static int axienet_ethtools_set_ringparam(struct net_device *ndev,
+					  struct ethtool_ringparam *ering)
+{
+	struct axienet_local *lp = netdev_priv(ndev);
+
+	if (ering->rx_pending > RX_BD_NUM_MAX ||
+	    ering->rx_mini_pending ||
+	    ering->rx_jumbo_pending ||
+	    ering->rx_pending > TX_BD_NUM_MAX)
+		return -EINVAL;
+
+	if (netif_running(ndev))
+		return -EBUSY;
+
+	lp->rx_bd_num = ering->rx_pending;
+	lp->tx_bd_num = ering->tx_pending;
+	return 0;
+}
+
+/**
+ * axienet_ethtools_sset_count - Get number of strings that
+ *				 get_strings will write.
+ * @ndev:	Pointer to net_device structure
+ * @sset:	Get the set strings
+ *
+ * Return: number of strings, on success, Non-zero error value on
+ *	   failure.
+ */
+int axienet_ethtools_sset_count(struct net_device *ndev, int sset)
+{
+	switch (sset) {
+	case ETH_SS_STATS:
+		return AXIENET_ETHTOOLS_SSTATS_LEN;
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+/**
+ * axienet_ethtools_get_stats - Get the extended statistics
+ *				about the device.
+ * @ndev:	Pointer to net_device structure
+ * @stats:	Pointer to ethtool_stats structure
+ * @data:	To store the statistics values
+ *
+ * Return: None.
+ */
+void axienet_ethtools_get_stats(struct net_device *ndev,
+				struct ethtool_stats *stats,
+				u64 *data)
+{
+	unsigned int i = 0;
+
+	data[i++] = ndev->stats.tx_packets;
+	data[i++] = ndev->stats.rx_packets;
+	data[i++] = ndev->stats.tx_bytes;
+	data[i++] = ndev->stats.rx_bytes;
+	data[i++] = ndev->stats.tx_errors;
+	data[i++] = ndev->stats.rx_missed_errors + ndev->stats.rx_frame_errors;
+}
+
+/**
+ * axienet_ethtools_strings - Set of strings that describe
+ *			 the requested objects.
+ * @ndev:	Pointer to net_device structure
+ * @sset:	Get the set strings
+ * @data:	Data of Transmit and Receive statistics
+ *
+ * Return: None.
+ */
+void axienet_ethtools_strings(struct net_device *ndev, u32 sset, u8 *data)
+{
+	int i;
+
+	for (i = 0; i < AXIENET_ETHTOOLS_SSTATS_LEN; i++) {
+		if (sset == ETH_SS_STATS)
+			memcpy(data + i * ETH_GSTRING_LEN,
+			       axienet_get_ethtools_strings_stats[i].name,
+			       ETH_GSTRING_LEN);
+	}
+}
+
 #if defined(LINUX_5_15)
 /**
  * axienet_ethtools_set_coalesce - Set DMA interrupt coalescing count.
@@ -1171,24 +1319,21 @@ static const struct ethtool_ops xtnet_ethtool_ops = {
 #if defined(LINUX_5_15)
      .supported_coalesce_params = ETHTOOL_COALESCE_MAX_FRAMES,
 #endif
-// 	.get_drvinfo    = axienet_ethtools_get_drvinfo,
-// 	.get_regs_len   = axienet_ethtools_get_regs_len,
+	.get_drvinfo    = axienet_ethtools_get_drvinfo,
+	.get_regs_len   = axienet_ethtools_get_regs_len,
 // 	.get_regs       = axienet_ethtools_get_regs,
-// 	.get_link       = ethtool_op_get_link,
-// 	.get_ringparam	= axienet_ethtools_get_ringparam,
-// 	.set_ringparam  = axienet_ethtools_set_ringparam,
+	.get_link       = ethtool_op_get_link,
+	.get_ringparam	= axienet_ethtools_get_ringparam,
+	.set_ringparam  = axienet_ethtools_set_ringparam,
 // 	.get_pauseparam = axienet_ethtools_get_pauseparam,
 // 	.set_pauseparam = axienet_ethtools_set_pauseparam,
 // 	.get_coalesce   = axienet_ethtools_get_coalesce,
 	.set_coalesce   = axienet_ethtools_set_coalesce,
-// 	.get_sset_count	= axienet_ethtools_sset_count,
+	.get_sset_count	= axienet_ethtools_sset_count,
 // 	.get_ethtool_stats = axienet_ethtools_get_stats,
-// 	.get_strings = axienet_ethtools_strings,
-// #if defined(CONFIG_XILINX_AXI_EMAC_HWTSTAMP) || defined(CONFIG_XILINX_TSN_PTP)
-// 	.get_ts_info    = axienet_ethtools_get_ts_info,
-// #endif
-// 	.get_link_ksettings = phy_ethtool_get_link_ksettings,
-// 	.set_link_ksettings = phy_ethtool_set_link_ksettings,
+	.get_strings = axienet_ethtools_strings,
+	.get_link_ksettings = phy_ethtool_get_link_ksettings,
+	.set_link_ksettings = phy_ethtool_set_link_ksettings,
 };
 
 /**
