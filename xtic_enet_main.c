@@ -166,10 +166,12 @@ static void xtnet_device_reset(struct net_device *ndev)
 		/* Reset the XXV MAC */
 		val = axienet_xxv_ior(lp, XXV_GT_RESET_OFFSET);
 		val |= XXV_GT_RESET_MASK;
+		xt_printk("val = %x\n", val);
 		axienet_xxv_iow(lp, XXV_GT_RESET_OFFSET, val);
 		/* Wait for 1ms for GT reset to complete as per spec */
 		mdelay(1);
 		val = axienet_xxv_ior(lp, XXV_GT_RESET_OFFSET);
+		xt_printk("XXV_GT_RESET_OFFSET = %x\n", val);
 		val &= ~XXV_GT_RESET_MASK;
 		axienet_xxv_iow(lp, XXV_GT_RESET_OFFSET, val);
 	}
@@ -177,7 +179,7 @@ static void xtnet_device_reset(struct net_device *ndev)
     if (!lp->is_tsn) {
         for_each_rx_dma_queue(lp, i) {
             q = lp->dq[i];
-            // __axienet_device_reset(q);
+            __axienet_device_reset(q);
         }
     }
 
@@ -210,7 +212,7 @@ static void xtnet_device_reset(struct net_device *ndev)
 		 * This ensures that 10G ethernet IP
 		 * is functioning normally or not.
 		 */
-		err = readl_poll_timeout(lp->regs + XXV_STATRX_BLKLCK_OFFSET,
+		err = readl_poll_timeout(lp->xxv_regs + XXV_STATRX_BLKLCK_OFFSET,
 					 val, (val & XXV_RX_BLKLCK_MASK),
 					 10, DELAY_OF_ONE_MILLISEC);
 		if (err) {
@@ -347,7 +349,7 @@ static int xtenet_open(struct net_device *ndev)
         /* Check block lock bit to make sure RX path is ok with
 		 * USXGMII initialization.
 		 */
-		err = readl_poll_timeout(lp->regs + XXV_STATRX_BLKLCK_OFFSET,
+		err = readl_poll_timeout(lp->xxv_regs + XXV_STATRX_BLKLCK_OFFSET,
 					 reg, (reg & XXV_RX_BLKLCK_MASK),
 					 100, DELAY_OF_ONE_MILLISEC);
 		if (err) {
@@ -357,7 +359,7 @@ static int xtenet_open(struct net_device *ndev)
 			goto err_eth_irq;
 		}
 
-		err = readl_poll_timeout(lp->regs + XXV_USXGMII_AN_STS_OFFSET,
+		err = readl_poll_timeout(lp->xxv_regs + XXV_USXGMII_AN_STS_OFFSET,
 					 reg, (reg & USXGMII_AN_STS_COMP_MASK),
 					 1000000, DELAY_OF_ONE_MILLISEC);
 		if (err) {
@@ -1357,7 +1359,7 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
     // Set up interrupts
 #if defined(LINUX_5_4)
     dev->irqn[1] = pci_irq_vector(pdev, 1);
-    for_each_rx_dma_queue(lp, i)
+    for_each_rx_dma_queue(dev, i)
 #elif defined(LINUX_5_15)
     for (i = 0; i < 1; i++)
 #endif

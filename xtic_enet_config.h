@@ -32,7 +32,7 @@
 
 #define RX_MEM					0x2580
 
-#define XTIC_MAX_QUEUES         16
+#define XTIC_MAX_QUEUES         1
 
 #define XTIC_PCIE_MAX_IRQ       2
 
