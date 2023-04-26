@@ -4,6 +4,8 @@
         "netdevice.h": "c",
         "module.h": "c",
         "pci.h": "c",
-        "xtic_enet.h": "c"
+        "xtic_enet.h": "c",
+        "stdlib.h": "c",
+        "stdio.h": "c"
     }
 }

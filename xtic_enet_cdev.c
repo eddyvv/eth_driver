@@ -10,6 +10,12 @@
 
 extern char xtenet_driver_name[];
 
+struct s_read_reg{
+    int len;
+    int addr[100];
+    int val[100];
+};
+
 static int xtic_cdev_open(struct inode *inode, struct file *file)
 {
     struct xtic_cdev *xcdev = NULL;
@@ -81,6 +87,41 @@ static long xtic_ioctrl_read(unsigned long arg, void* p)
     xt_printk("%s end!\n", __func__);
     return 0;
 }
+static long xtic_ioctrl_read_all(unsigned long arg, void* p)
+{
+    struct s_read_reg xxv_reg;
+    int i;
+    unsigned long ulTemp = 0;
+
+    xt_printk("%s start!\n", __func__);
+
+    memset(&xxv_reg, 0x0, sizeof(struct s_read_reg));
+
+    if(copy_from_user(&xxv_reg, (struct s_read_reg *)arg, sizeof(struct s_read_reg))){
+        pr_err("%s err copy_from_user err!\n", __func__);
+        return -EFAULT;
+    }
+
+    if(xxv_reg.len < 0){
+        pr_err("%s err xxv_reg.len = %d\n", __func__, xxv_reg.len);
+        return -EFAULT;
+    }
+
+    for(i = 0; i < xxv_reg.len; i++){
+        xxv_reg.addr[i] = i * 0x4;
+        READREG(p, xxv_reg.addr[i], &ulTemp);
+        xxv_reg.val[i] = (unsigned int)ulTemp;
+    }
+
+    if(copy_to_user((struct s_read_reg *)arg, &xxv_reg, sizeof(struct s_read_reg))){
+        pr_err("%s err copy_to_user err!\n", __func__);
+        return -EFAULT;
+    }
+
+    xt_printk("%s end!\n", __func__);
+    return 0;
+}
+
 
 static long xtic_ioctrl_write(unsigned long arg, void* p)
 {
@@ -117,6 +158,9 @@ static long xtic_cdev_ioctl(struct file *flip, unsigned int cmd, unsigned long a
             break;
         case XILINX_IOC_WRITE_REG:
                 ret = xtic_ioctrl_write(arg, lp->regs);
+            break;
+        case XILINX_IOC_READ_REG_ALL:
+                ret = xtic_ioctrl_read_all(arg, lp->regs);
             break;
         default:
         	break;

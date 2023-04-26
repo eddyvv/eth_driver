@@ -24,6 +24,7 @@
 #define XILINX_IOC_MAGIC                              'D'
 #define XILINX_IOC_READ_REG                       _IOR(XILINX_IOC_MAGIC, 0xc0, unsigned long)
 #define XILINX_IOC_WRITE_REG                      _IOW(XILINX_IOC_MAGIC, 0xc1, unsigned long)
+#define XILINX_IOC_READ_REG_ALL                   _IOR(XILINX_IOC_MAGIC, 0xc2, unsigned long)
 
 /* Packet size info */
 #define XAE_HDR_SIZE			14 /* Size of Ethernet header */
