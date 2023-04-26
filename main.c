@@ -21,17 +21,6 @@ struct s_read_reg{
 #define XILINX_IOC_WRITE_REG                      _IOW(XILINX_IOC_MAGIC, 0xc1, unsigned long)
 #define XILINX_IOC_READ_REG_ALL                   _IOR(XILINX_IOC_MAGIC, 0xc2, unsigned long)
 
-void add_spaces(char* str) {
-    int len =32;
-    int i, j;
-    for (i = len - 1, j = 0; i >= 0; i--, j++) {
-        if (j % 4 == 0 && j != 1) {
-            memmove(str + i + 1, str + i, len - i);
-            str[i] = ' ';
-            len++;
-        }
-    }
-}
 
 char* itoa(int num, char* str, int base) {
     int i = 0, b = 4;
@@ -56,7 +45,7 @@ char* itoa(int num, char* str, int base) {
             str[i++] = ' ';
         }
     } while (num > 0);
-    // add_spaces(str);
+
     // 如果是负数，添加负号
     if (is_negative) {
         str[i++] = '-';
@@ -88,10 +77,10 @@ void print_reg_val(struct s_read_reg *xxv)
 {
     char s[10];
     printf("read xxv reg\n");
-    printf("addr\tval(H)\tval(b)\n\n");
+    printf("addr\tval(H)\t\tval(b)\n\n");
     for(int i=0; i < xxv->len; i++){
         itoa(xxv->val[i], s, 2);
-        printf("0x%x\t0x%x\t0b%s\n", xxv->addr[i], xxv->val[i], s);
+        printf("0x%x\t0x%x\t\t0b%s\n", xxv->addr[i], xxv->val[i], s);
     }
     printf("\n\n");
 }
