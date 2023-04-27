@@ -11,7 +11,7 @@
 extern char xtenet_driver_name[];
 
 struct s_read_reg{
-    int len;
+    int len;/* 寄存器个数 */
     int addr[100];
     int val[100];
 };

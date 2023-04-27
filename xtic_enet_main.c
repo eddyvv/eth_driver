@@ -577,6 +577,8 @@ int axienet_queue_xmit(struct sk_buff *skb,
 		cur_p->tx_desc_mapping = DESC_DMA_MAP_PAGE;
 	}
 
+    xt_printk("%s end\n",__func__);
+
 out:
     cur_p->cntrl |= XAXIDMA_BD_CTRL_TXEOF_MASK;
 	tail_p = q->tx_bd_p + sizeof(*q->tx_bd_v) * q->tx_bd_tail;
@@ -589,14 +591,15 @@ out:
 	wmb();
 
     /* Start the transfer */
+    xt_printk("write axidma reg 0x%x val 0x%llx\n", XAXIDMA_TX_TDESC_OFFSET, tail_p);
     axienet_dma_bdout(q, XAXIDMA_TX_TDESC_OFFSET, tail_p);
-
+    xt_printk("read axidma reg 0x%x val 0x%x\n", XAXIDMA_TX_TDESC_OFFSET, axienet_dma_in32(q,XAXIDMA_TX_TDESC_OFFSET));
     if (++q->tx_bd_tail >= lp->tx_bd_num)
 		q->tx_bd_tail = 0;
 
     spin_unlock_irqrestore(&q->tx_lock, flags);
 
-    xt_printk("%s start\n",__func__);
+    xt_printk("%s out end\n",__func__);
 
     return NETDEV_TX_OK;
 }
@@ -716,10 +719,10 @@ static int netdev_set_mac_address(struct net_device *ndev, void *p)
 void axienet_set_multicast_list(struct net_device *ndev)
 {
 	struct axienet_local *lp = netdev_priv(ndev);
-    xt_printk("%s start\n",__func__);
+    // xt_printk("%s start\n",__func__);
     if ((lp->axienet_config->mactype != XAXIENET_1G) || lp->eth_hasnobuf)
 		return;
-    xt_printk("%s end\n",__func__);
+    // xt_printk("%s end\n",__func__);
 
 }
 
