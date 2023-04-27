@@ -217,10 +217,10 @@ static void xtnet_device_reset(struct net_device *ndev)
 		err = readl_poll_timeout(lp->xxv_regs + XXV_STATRX_BLKLCK_OFFSET,
 					 val, (val & XXV_RX_BLKLCK_MASK),
 					 10, DELAY_OF_ONE_MILLISEC);
+#endif
 		if (err) {
 			netdev_err(ndev, "XXV MAC block lock not complete! Cross-check the MAC ref clock configuration\n");
 		}
-#endif
     }
 
     if (lp->axienet_config->mactype == XAXIENET_10G_25G ||
