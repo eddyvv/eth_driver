@@ -246,7 +246,7 @@ int __maybe_unused axienet_dma_q_init(struct net_device *ndev,
 
 	if (__dma_rxq_init(ndev, q))
 		goto out;
-
+    xt_printk("%s end\n", __func__);
 	return 0;
 out:
 	axienet_dma_bd_release(ndev);
@@ -271,7 +271,7 @@ irqreturn_t __maybe_unused axienet_tx_irq(int irq, void *_ndev)
 	struct axienet_local *lp = netdev_priv(ndev);
 	int i = map_dma_q_irq(irq, lp);
 	struct axienet_dma_q *q;
-
+    xt_printk("%s start\n", __func__);
 	if (i < 0)
 		return IRQ_NONE;
 
@@ -330,6 +330,7 @@ irqreturn_t __maybe_unused axienet_rx_irq(int irq, void *_ndev)
 	int i = map_dma_q_irq(irq, lp);
 	struct axienet_dma_q *q;
 
+    xt_printk("%s start\n", __func__);
 	if (i < 0)
 		return IRQ_NONE;
 
@@ -386,6 +387,7 @@ void __maybe_unused axienet_dma_err_handler(unsigned long data)
 	struct net_device *ndev = lp->ndev;
 	struct axidma_bd *cur_p;
 
+    xt_printk("%s start\n", __func__);
 	lp->axienet_config->setoptions(ndev, lp->options &
 				       ~(XAE_OPTION_TXEN | XAE_OPTION_RXEN));
 
@@ -476,6 +478,8 @@ void __maybe_unused axienet_dma_err_handler(unsigned long data)
 	axienet_set_mac_address(ndev, NULL);
 	axienet_set_multicast_list(ndev);
 	lp->axienet_config->setoptions(ndev, lp->options);
+
+    xt_printk("%s start\n", __func__);
 }
 
 

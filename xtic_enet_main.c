@@ -252,10 +252,11 @@ void axienet_dma_bd_release(struct net_device *ndev)
 {
 	int i;
 	struct axienet_local *lp = netdev_priv(ndev);
-
+    xt_printk("%s start\n",__func__);
     for_each_rx_dma_queue(lp, i) {
         axienet_bd_free(ndev, lp->dq[i]);
     }
+    xt_printk("%s end\n",__func__);
 }
 static int xtenet_open(struct net_device *ndev)
 {

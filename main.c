@@ -134,10 +134,10 @@ int main(int argc, char *argv)
         return -1;
     }
 
-    set_reg_addr(XXV_REG, &xxv);
-    read_reg_val(fd, &xxv);
-    printf("read xxv reg\n");
-    print_reg_val(&xxv);
+    // set_reg_addr(XXV_REG, &xxv);
+    // read_reg_val(fd, &xxv);
+    // printf("read xxv reg\n");
+    // print_reg_val(&xxv);
 
     // set_reg_addr(AXIDMA_REG, &axidma);
     // read_reg_val(fd, &axidma);
