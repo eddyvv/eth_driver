@@ -140,7 +140,9 @@ static int __dma_txq_init(struct net_device *ndev, struct axienet_dma_q *q)
 	 * tail pointer register that the Tx channel will start transmitting.
 	 */
     /* 配置描述符地址 */
+	xt_printk("%s\n", __FILE__);
 	axienet_dma_bdout(q, XAXIDMA_TX_CDESC_OFFSET, q->tx_bd_p);
+	axienet_dma_in32(q, XAXIDMA_TX_CDESC_OFFSET);
 	cr = axienet_dma_in32(q, XAXIDMA_TX_CR_OFFSET);
     /* 启动传输 */
 	axienet_dma_out32(q, XAXIDMA_TX_CR_OFFSET,

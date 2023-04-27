@@ -14,6 +14,8 @@
 #define PCI_VENDOR_ID_XTIC 0x10ee
 #define PCI_DEVICE_ID_XTIC 0x9038
 #define WRITE_REG
+#define PRINT_REG_WR
+#define DEBUG
 #endif
 
 #define XDMA0_CTRL_BASE       0x00000000

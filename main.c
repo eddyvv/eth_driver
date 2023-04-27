@@ -139,11 +139,12 @@ int main(int argc, char *argv)
     printf("read xxv reg\n");
     print_reg_val(&xxv);
 
-    set_reg_addr(AXIDMA_REG, &axidma);
-    read_reg_val(fd, &axidma);
-    printf("read axidma reg\n");
-    print_reg_val(&axidma);
+    // set_reg_addr(AXIDMA_REG, &axidma);
+    // read_reg_val(fd, &axidma);
+    // printf("read axidma reg\n");
+    // print_reg_val(&axidma);
     // printf("read addr = 0x%x, data = 0x%x\n", debug_reg.addr, debug_reg.data);
+    close(fd);
     return 0;
 }
 
