@@ -65,24 +65,24 @@ char* itoa(int num, char* str, int base) {
     return str;
 }
 
-int read_reg_val(int fd, struct s_read_reg *xxv)
+int read_reg_val(int fd, struct s_read_reg *reg)
 {
-    if(0 != ioctl(fd, XILINX_IOC_READ_REG_ALL, xxv)){
+    if(0 != ioctl(fd, XILINX_IOC_READ_REG_ALL, reg)){
         printf(" ioctl() failed!\n");
         return -1;
     }
 }
 
-void print_reg_val(struct s_read_reg *xxv)
+void print_reg_val(struct s_read_reg *reg)
 {
-    char s[10];
-    printf("read xxv reg\n");
-    printf("addr\tval(H)\t\tval(b)\n\n");
-    for(int i=0; i < xxv->len; i++){
-        itoa(xxv->val[i], s, 2);
-        printf("0x%x\t0x%x\t\t0b%s\n", xxv->addr[i], xxv->val[i], s);
+    char s[16];
+
+    printf("addr\tval(H)\n\n");
+    for(int i=0; i < reg->len; i++){
+        // itoa(reg->val[i], s, 2);
+        printf("0x%x\t0x%x\n", reg->addr[i], reg->val[i]);
     }
-    printf("\n\n");
+    printf("\n");
 }
 
 int read_reg_test(int fd, struct xtic_degug_reg_wr *debug_reg)
@@ -96,22 +96,29 @@ int read_reg_test(int fd, struct xtic_degug_reg_wr *debug_reg)
 }
 #define XXV_REG 1
 #define AXIDMA_REG 2
-void set_reg_addr(int cmd, struct s_read_reg *xxv)
+void set_reg_addr(int cmd, struct s_read_reg *reg)
 {
+    int reg_base = 0;
     switch(cmd)
     {
         case XXV_REG:
-            xxv->len = 9;
+            reg->len = 15;
+#if defined(LINUX_5_4)
+            reg_base = XXV_ETHERNET_0_BASE;
+#endif
             break;
         case AXIDMA_REG:
-            xxv->len = 9;
+            reg->len = 24;
+#if defined(LINUX_5_4)
+            reg_base = AXIDMA_1_BASE;
+#endif
             break;
         default:
-            xxv->len = 9;
+            reg->len = 9;
         break;
     }
-    for(int i = 0;i < xxv->len; i++){
-        xxv->addr[i] = i*4;
+    for(int i = 0;i < reg->len; i++){
+        reg->addr[i] = i*4 + reg_base;
     }
 }
 
@@ -119,6 +126,7 @@ int main(int argc, char *argv)
 {
     int i;
     struct s_read_reg xxv;
+    struct s_read_reg axidma;
 
     int fd = open("/dev/xtenet_eth", O_RDWR);
     if (fd < 0){
@@ -128,7 +136,13 @@ int main(int argc, char *argv)
 
     set_reg_addr(XXV_REG, &xxv);
     read_reg_val(fd, &xxv);
+    printf("read xxv reg\n");
     print_reg_val(&xxv);
+
+    set_reg_addr(AXIDMA_REG, &axidma);
+    read_reg_val(fd, &axidma);
+    printf("read axidma reg\n");
+    print_reg_val(&axidma);
     // printf("read addr = 0x%x, data = 0x%x\n", debug_reg.addr, debug_reg.data);
     return 0;
 }
