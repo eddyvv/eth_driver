@@ -108,7 +108,7 @@ static int axienet_dma_bd_init(struct net_device *ndev)
 {
 	int i, ret = -EINVAL;
 	struct axienet_local *lp = netdev_priv(ndev);
-
+    xt_printk("%s start\n", __func__);
     for_each_rx_dma_queue(lp, i) {
         ret = axienet_dma_q_init(ndev, lp->dq[i]);
         if (ret != 0) {
@@ -116,6 +116,7 @@ static int axienet_dma_bd_init(struct net_device *ndev)
 			break;
 		}
     }
+    xt_printk("%s end\n", __func__);
 	return ret;
 }
 
@@ -212,12 +213,14 @@ static void xtnet_device_reset(struct net_device *ndev)
 		 * This ensures that 10G ethernet IP
 		 * is functioning normally or not.
 		 */
+#if defined(LINUX_5_4)
 		err = readl_poll_timeout(lp->xxv_regs + XXV_STATRX_BLKLCK_OFFSET,
 					 val, (val & XXV_RX_BLKLCK_MASK),
 					 10, DELAY_OF_ONE_MILLISEC);
 		if (err) {
 			netdev_err(ndev, "XXV MAC block lock not complete! Cross-check the MAC ref clock configuration\n");
 		}
+#endif
     }
 
     if (lp->axienet_config->mactype == XAXIENET_10G_25G ||
@@ -349,19 +352,22 @@ static int xtenet_open(struct net_device *ndev)
         /* Check block lock bit to make sure RX path is ok with
 		 * USXGMII initialization.
 		 */
+#if defined(LINUX_5_4)
 		err = readl_poll_timeout(lp->xxv_regs + XXV_STATRX_BLKLCK_OFFSET,
 					 reg, (reg & XXV_RX_BLKLCK_MASK),
 					 100, DELAY_OF_ONE_MILLISEC);
+#endif
 		if (err) {
 			netdev_err(ndev, "%s: USXGMII Block lock bit not set",
 				   __func__);
 			ret = -ENODEV;
 			goto err_eth_irq;
 		}
-
+#if defined(LINUX_5_4)
 		err = readl_poll_timeout(lp->xxv_regs + XXV_USXGMII_AN_STS_OFFSET,
 					 reg, (reg & USXGMII_AN_STS_COMP_MASK),
 					 1000000, DELAY_OF_ONE_MILLISEC);
+#endif
 		if (err) {
 			netdev_err(ndev, "%s: USXGMII AN not complete",
 				   __func__);
