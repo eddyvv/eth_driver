@@ -561,6 +561,8 @@ int axienet_queue_xmit(struct sk_buff *skb,
 					     skb_headlen(skb), DMA_TO_DEVICE);
     }
 
+    cur_p->tx_desc_mapping = DESC_DMA_MAP_SINGLE;
+
     for (ii = 0; ii < num_frag; ii++) {
 		u32 len;
 		skb_frag_t *frag;
