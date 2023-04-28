@@ -5,7 +5,10 @@
             "includePath": [
                 "/usr/src/linux-headers-5.15.0-60-generic/include",
                 "/usr/src/linux-headers-5.15.0-60-generic/include/linux",
-                "/home/eddy/code/eth_driver"
+                "/home/eddy/code/eth_driver",
+                "/usr/src/linux-headers-5.4.0-147-generic/include",
+                "/usr/src/linux-headers-5.4.0-147-generic/include/linux",
+                "/media/test/250soc/xtic_nic/4-28/eth_driver/code"
             ],
             "defines": [],
             "cStandard": "c11",
