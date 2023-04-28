@@ -197,9 +197,9 @@ static int __dma_rxq_init(struct net_device *ndev,
 						    skb->data,
 						    lp->max_frm_size,
 						    DMA_FROM_DEVICE);
-        xt_printk("rx dma dec %d phys 0x%lx\n", i, q->rx_bd_v[i].phys);
+        xt_printk("rx dma dec %d phys 0x%llx\n", i, q->rx_bd_v[i].phys);
 		q->rx_bd_v[i].cntrl = lp->max_frm_size;
-        xt_printk("rx dma dec %d len 0x%lx\n", i, q->rx_bd_v[i].cntrl);
+        xt_printk("rx dma dec %d len 0x%x\n", i, q->rx_bd_v[i].cntrl);
 	}
 
 	/* Start updating the Rx channel control register */

@@ -519,7 +519,7 @@ int axienet_queue_xmit(struct sk_buff *skb,
 		}
 	}
     num_frag = skb_shinfo(skb)->nr_frags;
-    xt_printk("%s num_frag = 0x%lx",__func__, num_frag);
+    xt_printk("%s num_frag = 0x%x",__func__, num_frag);
 	q = lp->dq[map];
 
     cur_p = &q->tx_bd_v[q->tx_bd_tail];
@@ -577,8 +577,8 @@ int axienet_queue_xmit(struct sk_buff *skb,
 		cur_p->phys = skb_frag_dma_map(ndev->dev.parent, frag, 0, len,
 					       DMA_TO_DEVICE);
 		cur_p->cntrl = len;
-        xt_printk("tx dma dec %d phys 0x%lx\n", ii, cur_p->phys);
-        xt_printk("tx dma dec %d len 0x%lx\n", ii, cur_p->cntrl);
+        xt_printk("tx dma dec %d phys 0x%llx\n", ii, cur_p->phys);
+        xt_printk("tx dma dec %d len 0x%x\n", ii, cur_p->cntrl);
 		cur_p->tx_desc_mapping = DESC_DMA_MAP_PAGE;
 	}
 

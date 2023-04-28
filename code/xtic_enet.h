@@ -610,19 +610,19 @@ static inline void axienet_dma_bdout(struct axienet_dma_q *q,
 				     off_t reg, dma_addr_t value)
 {
 #ifdef WRITE_REG
-#if defined(CONFIG_PHYS_ADDR_T_64BIT)
-    #ifdef PRINT_REG_WR
-        xt_printk("write axidma reg addr\t0x%x\tval 0x%x\n", reg, value);
-    #endif
-    writeq(value, (q->dma_regs + reg));
-#else //CONFIG_PHYS_ADDR_T_64BIT
+    #if defined(CONFIG_PHYS_ADDR_T_64BIT)
+        #ifdef PRINT_REG_WR
+            xt_printk("write axidma reg addr\t0x%lx\tval 0x%llx\n", reg, value);
+        #endif
+        writeq(value, (q->dma_regs + reg));
+    #else //CONFIG_PHYS_ADDR_T_64BIT
 
-    writeq(value, (q->dma_regs + reg));
-    #ifdef PRINT_REG_WR
-        xt_printk("write axidma reg addr\t0x%lx\tval 0x%x\n", reg, value);
-    #endif
+        writeq(value, (q->dma_regs + reg));
+        #ifdef PRINT_REG_WR
+            xt_printk("write axidma reg addr\t0x%lx\tval 0x%llx\n", reg, value);
+        #endif
 
-#endif // CONFIG_PHYS_ADDR_T_64BIT
+    #endif // CONFIG_PHYS_ADDR_T_64BIT
 #else
     return;
 #endif // WRITE_REG
@@ -642,9 +642,9 @@ static inline u32 axienet_dma_in32(struct axienet_dma_q *q, off_t reg)
 #ifdef WRITE_REG
     int val;
     val = ioread32(q->dma_regs + reg);
-#ifdef PRINT_REG_WR
-    xt_printk("read axidma reg addr\t0x%lx\tval 0x%x\n", reg, val);
-#endif
+    #ifdef PRINT_REG_WR
+        xt_printk("read axidma reg addr\t0x%lx\tval 0x%x\n", reg, val);
+    #endif
     return val;
 #else
     return 0;
@@ -665,9 +665,9 @@ static inline void axienet_dma_out32(struct axienet_dma_q *q,
 {
 #ifdef WRITE_REG
 	iowrite32(value, q->dma_regs + reg);
-#ifdef PRINT_REG_WR
-    xt_printk("write axidma reg addr\t0x%lx\tval 0x%x\n", reg, value);
-#endif
+    #ifdef PRINT_REG_WR
+        xt_printk("write axidma reg addr\t0x%lx\tval 0x%x\n", reg, value);
+    #endif
 #else
     return;
 #endif//WRITE_REG
@@ -681,9 +681,9 @@ static inline void axienet_xxv_iow(struct axienet_local *lp, off_t offset,
 {
 #ifdef WRITE_REG
     iowrite32(value, lp->xxv_regs + offset);
-#ifdef PRINT_REG_WR
-    xt_printk("write xxv reg addr\t0x%lx\tval 0x%x\n", offset, value);
-#endif
+    #ifdef PRINT_REG_WR
+        xt_printk("write xxv reg addr\t0x%lx\tval 0x%x\n", offset, value);
+    #endif
 #else
     return;
 #endif//WRITE_REG
@@ -697,9 +697,9 @@ static inline u32 axienet_xxv_ior(struct axienet_local *lp, off_t offset)
 #ifdef WRITE_REG
     int val;
     val = ioread32(lp->xxv_regs + offset);
-#ifdef PRINT_REG_WR
-    xt_printk("read xxv reg addr\t0x%lx\tval 0x%x\n", offset, val);
-#endif
+    #ifdef PRINT_REG_WR
+        xt_printk("read xxv reg addr\t0x%lx\tval 0x%x\n", offset, val);
+    #endif
     return val;
 #else
     return 0;
@@ -714,9 +714,9 @@ static inline void axienet_iow(struct axienet_local *lp, off_t offset,
 {
 #ifdef WRITE_REG
     iowrite32(value, lp->xxv_regs + offset);
-#ifdef PRINT_REG_WR
-    xt_printk("write reg addr\t0x%lx\tval 0x%x\n", offset, value);
-#endif
+    #ifdef PRINT_REG_WR
+        xt_printk("write reg addr\t0x%lx\tval 0x%x\n", offset, value);
+    #endif
 #else
     return;
 #endif//WRITE_REG
@@ -730,9 +730,9 @@ static inline u32 axienet_ior(struct axienet_local *lp, off_t offset)
 #ifdef WRITE_REG
     int val;
     val = ioread32(lp->xxv_regs + offset);
-#ifdef PRINT_REG_WR
-    xt_printk("read reg addr\t0x%lx\tval 0x%x\n", offset, val);
-#endif
+    #ifdef PRINT_REG_WR
+        xt_printk("read reg addr\t0x%lx\tval 0x%x\n", offset, val);
+    #endif
     return val;
 #else
     return 0;
