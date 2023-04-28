@@ -519,7 +519,7 @@ int axienet_queue_xmit(struct sk_buff *skb,
 		}
 	}
     num_frag = skb_shinfo(skb)->nr_frags;
-
+    xt_printk("%s num_frag = 0x%lx",__func__, num_frag);
 	q = lp->dq[map];
 
     cur_p = &q->tx_bd_v[q->tx_bd_tail];
@@ -575,6 +575,8 @@ int axienet_queue_xmit(struct sk_buff *skb,
 		cur_p->phys = skb_frag_dma_map(ndev->dev.parent, frag, 0, len,
 					       DMA_TO_DEVICE);
 		cur_p->cntrl = len;
+        xt_printk("tx dma dec %d phys 0x%lx\n", ii, cur_p->phys);
+        xt_printk("tx dma dec %d len 0x%lx\n", ii, cur_p->cntrl);
 		cur_p->tx_desc_mapping = DESC_DMA_MAP_PAGE;
 	}
 
@@ -592,9 +594,7 @@ out:
 	wmb();
 
     /* Start the transfer */
-    xt_printk("write axidma reg 0x%x val 0x%llx\n", XAXIDMA_TX_TDESC_OFFSET, tail_p);
     axienet_dma_bdout(q, XAXIDMA_TX_TDESC_OFFSET, tail_p);
-    xt_printk("read axidma reg 0x%x val 0x%x\n", XAXIDMA_TX_TDESC_OFFSET, axienet_dma_in32(q,XAXIDMA_TX_TDESC_OFFSET));
     if (++q->tx_bd_tail >= lp->tx_bd_num)
 		q->tx_bd_tail = 0;
 
@@ -628,7 +628,7 @@ void axienet_start_xmit_done(struct net_device *ndev,
     unsigned int status = 0;
     cur_p = &q->tx_bd_v[q->tx_bd_ci];
 	status = cur_p->status;
-
+    xt_printk("%s start\n",__func__);
     while (status & XAXIDMA_BD_STS_COMPLETE_MASK) {
         if (cur_p->tx_desc_mapping == DESC_DMA_MAP_PAGE)
 			dma_unmap_page(ndev->dev.parent, cur_p->phys,
@@ -675,7 +675,7 @@ void axienet_start_xmit_done(struct net_device *ndev,
 	 */
 	netif_tx_wake_all_queues(ndev);
 
-
+    xt_printk("%s end\n",__func__);
 }
 static int xticenet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {

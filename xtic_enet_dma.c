@@ -140,8 +140,10 @@ static int __dma_txq_init(struct net_device *ndev, struct axienet_dma_q *q)
 	 * tail pointer register that the Tx channel will start transmitting.
 	 */
     /* 配置描述符地址 */
+    xt_printk("write addr 0x%x q->tx_bd_p = 0x%lx",XAXIDMA_TX_CDESC_OFFSET, q->tx_bd_p);
 	axienet_dma_bdout(q, XAXIDMA_TX_CDESC_OFFSET, q->tx_bd_p);
-	axienet_dma_in32(q, XAXIDMA_TX_CDESC_OFFSET);
+
+    xt_printk("read addr 0x%x val 0x%lx",XAXIDMA_TX_CDESC_OFFSET, axienet_dma_in32(q, XAXIDMA_TX_CDESC_OFFSET));
 	cr = axienet_dma_in32(q, XAXIDMA_TX_CR_OFFSET);
     /* 启动传输 */
 	axienet_dma_out32(q, XAXIDMA_TX_CR_OFFSET,
@@ -197,7 +199,9 @@ static int __dma_rxq_init(struct net_device *ndev,
 						    skb->data,
 						    lp->max_frm_size,
 						    DMA_FROM_DEVICE);
+        xt_printk("rx dma dec %d phys 0x%lx\n", i, q->rx_bd_v[i].phys);
 		q->rx_bd_v[i].cntrl = lp->max_frm_size;
+        xt_printk("rx dma dec %d len 0x%lx\n", i, q->rx_bd_v[i].cntrl);
 	}
 
 	/* Start updating the Rx channel control register */
@@ -479,7 +483,7 @@ void __maybe_unused axienet_dma_err_handler(unsigned long data)
 	axienet_set_multicast_list(ndev);
 	lp->axienet_config->setoptions(ndev, lp->options);
 
-    xt_printk("%s start\n", __func__);
+    xt_printk("%s end\n", __func__);
 }
 
 
