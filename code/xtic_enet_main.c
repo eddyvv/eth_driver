@@ -9,7 +9,7 @@
 #include <linux/etherdevice.h>
 char xtenet_driver_name[] = "xtenet_eth";
 
-#define DRIVER_NAME		"xaxienet"
+#define DRIVER_NAME		"axienet"
 #define DRIVER_DESCRIPTION	"Xilinx Axi Ethernet driver"
 #define DRIVER_VERSION		"1.00a"
 
@@ -519,7 +519,7 @@ int axienet_queue_xmit(struct sk_buff *skb,
 		}
 	}
     num_frag = skb_shinfo(skb)->nr_frags;
-    xt_printk("%s num_frag = 0x%x",__func__, num_frag);
+    xt_printk("%s num_frag = 0x%x\n",__func__, num_frag);
 	q = lp->dq[map];
 
     cur_p = &q->tx_bd_v[q->tx_bd_tail];
