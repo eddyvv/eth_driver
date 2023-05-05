@@ -339,6 +339,7 @@ irqreturn_t __maybe_unused axienet_rx_irq(int irq, void *_ndev)
 	q = lp->dq[i];
 
 	status = axienet_dma_in32(q, XAXIDMA_RX_SR_OFFSET);
+    axienet_dma_in32(q, XAXIDMA_TX_SR_OFFSET);
 	if (status & (XAXIDMA_IRQ_IOC_MASK | XAXIDMA_IRQ_DELAY_MASK)) {
 		cr = axienet_dma_in32(q, XAXIDMA_RX_CR_OFFSET);
 		cr &= ~(XAXIDMA_IRQ_IOC_MASK | XAXIDMA_IRQ_DELAY_MASK);

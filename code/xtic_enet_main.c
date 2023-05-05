@@ -1034,6 +1034,7 @@ static int axienet_recv(struct net_device *ndev, int budget,
     struct axidma_bd *cur_p;
     unsigned int numbdfree = 0;
 
+    xt_printk("%s start\n", __func__);
     /* Get relevat BD status value */
 	rmb();
 
@@ -1107,7 +1108,7 @@ static int axienet_recv(struct net_device *ndev, int budget,
 	if (tail_p) {
         axienet_dma_bdout(q, XAXIDMA_RX_TDESC_OFFSET, tail_p);
     }
-
+    xt_printk("%s end\n", __func__);
     return numbdfree;
 }
 
@@ -1128,7 +1129,7 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
 	struct axienet_local *lp = netdev_priv(ndev);
 	int work_done = 0;
 	unsigned int status, cr;
-
+    xt_printk("%s start\n", __func__);
 	int map = napi - lp->napi;
 
 	struct axienet_dma_q *q = lp->dq[map];
@@ -1156,7 +1157,7 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
 		cr |= (XAXIDMA_IRQ_IOC_MASK | XAXIDMA_IRQ_DELAY_MASK);
 		axienet_dma_out32(q, XAXIDMA_RX_CR_OFFSET, cr);
     }
-
+    xt_printk("%s end\n", __func__);
     return work_done;
 }
 
