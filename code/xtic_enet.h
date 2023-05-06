@@ -378,10 +378,6 @@ struct axidma_bd {
  *		completed.
  * @rx_bd_ci:	Stores the index of the Rx buffer descriptor in the ring being
  *		accessed currently.
- * @chan_id:    MCDMA channel to operate on.
- * @rx_offset:	MCDMA S2MM channel starting offset.
- * @txq_bd_v:	Virtual address of the MCDMA TX buffer descriptor ring
- * @rxq_bd_v:	Virtual address of the MCDMA RX buffer descriptor ring
  * @tx_packets: Number of transmit packets processed by the dma queue.
  * @tx_bytes:   Number of transmit bytes processed by the dma queue.
  * @rx_packets: Number of receive packets processed by the dma queue.
@@ -411,9 +407,6 @@ struct axienet_dma_q {
 	u32 tx_bd_ci;   /* 正在填充的发送环 */
 	u32 rx_bd_ci;   /* 正在处理的接受环 */
 	u32 tx_bd_tail; /* 正在DMA处理的发送环 */
-
-	u16 chan_id;
-	u32 rx_offset;
 
 	unsigned long tx_packets;
 	unsigned long tx_bytes;
@@ -447,7 +440,6 @@ struct xtic_cdev {
  * @mii_clk_div: MII bus clock divider value
  * @regs_start: Resource start for axienet device addresses
  * @regs:   Base address for the axienet_local device address space
- * @mcdma_regs: Base address for the aximcdma device address space
  * @napi:   Napi Structure array for all dma queues
  * @num_tx_queues: Total number of Tx DMA queues
  * @num_rx_queues: Total number of Rx DMA queues
@@ -499,9 +491,6 @@ struct xtic_cdev {
  * @dma_rx_clk: DMA S2MM Primary Clock.
  * @dma_tx_clk: DMA MM2S Primary Clock.
  * @qnum:     Axi Ethernet queue number to be operate on.
- * @chan_num: MCDMA Channel number to be operate on.
- * @chan_id:  MCMDA Channel id used in conjunction with weight parameter.
- * @weight:   MCDMA Channel weight value to be configured for.
  * @dma_mask: Specify the width of the DMA address space.
  * @usxgmii_rate: USXGMII PHY speed.
  * @mrmac_rate: MRMAC speed.
