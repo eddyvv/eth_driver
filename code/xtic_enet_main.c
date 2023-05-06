@@ -998,8 +998,9 @@ xt_err_disable:
 void xtnet_irq_deinit_pcie(struct axienet_local *dev)
 {
 	struct pci_dev *pdev = dev->pdev;
-	int k;
 #if defined(LINUX_5_15)
+    int k;
+
     for (k = 0; k < 1; k++)
     {
 		if (dev->irqn[k]) {
@@ -1133,11 +1134,10 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
 	struct axienet_local *lp = netdev_priv(ndev);
 	int work_done = 0;
 	unsigned int status, cr;
-    xt_printk("%s start\n", __func__);
 	int map = napi - lp->napi;
-
 	struct axienet_dma_q *q = lp->dq[map];
 
+    xt_printk("%s start\n", __func__);
     spin_lock(&q->rx_lock);
 
     status = axienet_dma_in32(q, XAXIDMA_RX_SR_OFFSET);
