@@ -4,9 +4,9 @@
 #include <linux/module.h>
 
 #define READREG(pBaseAddr, offset, pbuf) \
-			(*((unsigned long *)(pbuf)) =  ioread32(pBaseAddr + offset))
+            (*((unsigned long *)(pbuf)) =  ioread32(pBaseAddr + offset))
 #define WRITEREG(pBaseAddr, offset, val) \
-			iowrite32(val, pBaseAddr + offset)
+            iowrite32(val, pBaseAddr + offset)
 
 extern char xtenet_driver_name[];
 
@@ -24,7 +24,7 @@ static int xtic_cdev_open(struct inode *inode, struct file *file)
     xcdev = container_of(inode->i_cdev, struct xtic_cdev, cdev);
     if(!xcdev){
         pr_err("xcdev 0x%p inode 0x%lx\n", xcdev, inode->i_ino);
-		return -EINVAL;
+        return -EINVAL;
     }
 
     file->private_data = xcdev;
@@ -163,7 +163,7 @@ static long xtic_cdev_ioctl(struct file *flip, unsigned int cmd, unsigned long a
                 ret = xtic_ioctrl_read_all(arg, lp->regs);
             break;
         default:
-        	break;
+            break;
     }
 
     xt_printk("%s end!\n", __func__);
@@ -193,13 +193,13 @@ static int create_xcdev(struct xtic_cdev *xcdev)
     }
 
     xt_printk("xcdev 0x%p, %u:%u, %s.\n",
-		xcdev, xcdev->major, xcdev->minor, xcdev->cdev.kobj.name);
+        xcdev, xcdev->major, xcdev->minor, xcdev->cdev.kobj.name);
 
     xcdev->class = class_create(THIS_MODULE, xtenet_driver_name);
     if (IS_ERR(xcdev->class)) {
         xt_printk("class_create failed\n");
-		return PTR_ERR(xcdev->class);
-	}
+        return PTR_ERR(xcdev->class);
+    }
 
     xcdev->device = device_create(xcdev->class, NULL, xcdev->devid, NULL, xtenet_driver_name);
     if (IS_ERR(xcdev->device)){
@@ -230,7 +230,7 @@ static int destroy_xcdev(struct xtic_cdev *xcdev)
     cdev_del(&xcdev->cdev);
     xt_printk("cdev_del end!\n");
     if (xcdev->class)
-		class_destroy(xcdev->class);
+        class_destroy(xcdev->class);
 
     xt_printk("%s end!\n", __func__);
     return 0;
@@ -251,7 +251,7 @@ int xtic_cdev_create_interfaces(struct xtic_cdev *xcdev)
         if(ret)
         {
             pr_err("unable to allocate xcdev region %d.\n", ret);
-			goto fail_alloc_chrdev;
+            goto fail_alloc_chrdev;
         }
 
         xcdev->major = MAJOR(xcdev->devid);
@@ -260,15 +260,15 @@ int xtic_cdev_create_interfaces(struct xtic_cdev *xcdev)
 
     ret = create_xcdev(xcdev);
     if (ret < 0) {
-		pr_err("create_char_dev failed\n");
-		goto fail_create_xcdev;
-	}
+        pr_err("create_char_dev failed\n");
+        goto fail_create_xcdev;
+    }
     xt_printk("%s end!\n", __func__);
     return 0;
 fail_create_xcdev:
-	destroy_xcdev(xcdev);
+    destroy_xcdev(xcdev);
 fail_alloc_chrdev:
-	return ret;
+    return ret;
 }
 
 void xtic_cdev_destroy_interfaces(struct xtic_cdev *xcdev)
@@ -285,10 +285,10 @@ int xtic_cdev_init(void)
 {
     xt_printk("%s start!\n", __func__);
     g_xdma_class = class_create(THIS_MODULE, xtenet_driver_name);
-	if (IS_ERR(g_xdma_class)) {
-		pr_err("class_create failed\n");
-		return -EINVAL;
-	}
+    if (IS_ERR(g_xdma_class)) {
+        pr_err("class_create failed\n");
+        return -EINVAL;
+    }
     xt_printk("%s end!\n", __func__);
     return 0;
 }
