@@ -1048,6 +1048,10 @@ static int axienet_recv(struct net_device *ndev, int budget,
 			break;
 		}
         tail_p = q->rx_bd_p + sizeof(*q->rx_bd_v) * q->rx_bd_ci;
+        /*
+         * 内存中已经存在接收到的数据，但由于内存支持cache，此时cache中的数据为“脏”状态，
+         * 需要进行清“脏”操作，之后在cache得到新的正确的数据之后，重新映射为DMA数据空间。
+         */
         dma_unmap_single(ndev->dev.parent, cur_p->phys,
 				 lp->max_frm_size,
 				 DMA_FROM_DEVICE);
