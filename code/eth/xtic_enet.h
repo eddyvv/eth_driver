@@ -9,17 +9,9 @@
 #include <linux/cdev.h>
 #include <linux/version.h>
 #include "xtic_enet_config.h"
+#include "../inc/xtic_common.h"
 
-#ifndef XTIC_DEBUG
-#define xt_printk
-#else
-#define xt_printk printk
-#endif /* XTIC_DEBUG */
 
-#define xtenet_core_err(__dev, format, ...)         \
-    dev_err((__dev)->dev, "%s:%d:(pid %d): " format, \
-        __func__, __LINE__, current->pid,       \
-           ##__VA_ARGS__)
 
 #define XILINX_IOC_MAGIC                              'D'
 #define XILINX_IOC_READ_REG                       _IOR(XILINX_IOC_MAGIC, 0xc0, unsigned long)

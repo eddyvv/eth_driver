@@ -11,11 +11,11 @@ ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_4))
 EXTRA_CFLAGS += -DLINUX_5_4
 endif
 
-ccflags-y += -I$(shell pwd)
+
 
 SUBDIRS_ALL := eth xib
 
-.PHONY: all clean $(SUBDIRS_ALL)
+.PHONY: all clean install install_xib install_eth $(SUBDIRS_ALL)
 
 all: $(SUBDIRS_ALL)
 
@@ -30,8 +30,13 @@ install_eth:
 	make eth
 	sudo insmod ./eth/xtic_nic.ko
 
+install:
+	make all
+	sudo insmod ./eth/xtic_nic.ko
+	sudo insmod ./xib/xib.ko
+
 clean:
 	@for dir in $(SUBDIRS_ALL); do \
 		make -C $$dir clean; \
 	done
-	sudo rmmod xib eth
+	sudo rmmod xib xtic_nic
