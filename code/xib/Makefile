@@ -1,8 +1,13 @@
+MK_INC := $(PWD)/mk
+include $(MK_INC)/common.mk
+
 KERNELDIR_ := /lib/modules/$(shell uname -r)/build
 
-obj-m += xib.o
+MODULE_NAME := xib
 
-xib-objs := main.o
+obj-m += $(MODULE_NAME).o
+
+$(MODULE_NAME)-objs := main.o
 
 all:
 	$(MAKE) -C $(KERNELDIR_) M=$(CURDIR) modules

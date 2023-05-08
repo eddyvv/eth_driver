@@ -29,7 +29,7 @@
 #include <linux/of_address.h>
 #include <linux/jiffies.h>
 #include "xib-abi.h"
-#include "../inc/xtic_common.h"
+#include "xtic_common.h"
 
 
 
@@ -42,7 +42,7 @@
 
 
 
-static int __init xtic_roce_init(void)
+static int __init xtic_ib_init(void)
 {
     xt_printk("%s start\n", __func__);
 
@@ -50,18 +50,18 @@ static int __init xtic_roce_init(void)
     return 0;
 }
 
-static void __exit xtic_roce_exit(void)
+static void __exit xtic_ib_exit(void)
 {
     xt_printk("%s start\n", __func__);
 
     xt_printk("%s end\n", __func__);
 }
 
-module_init(xtic_roce_init);
-module_exit(xtic_roce_exit);
+module_init(xtic_ib_init);
+module_exit(xtic_ib_exit);
 
-MODULE_AUTHOR("syed s <syeds@xilinx.com>");
-MODULE_DESCRIPTION("Xilinx ERNIC IB driver");
+MODULE_AUTHOR("XTIC Corporation,<xtic@xtic.com>");
+MODULE_DESCRIPTION("XTIC ERNIC IB driver");
 MODULE_LICENSE("GPL");
 
 
