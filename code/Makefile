@@ -13,15 +13,25 @@ endif
 
 ccflags-y += -I$(shell pwd)
 
-SUBDIRS := eth xib
+SUBDIRS_ALL := eth xib
 
-.PHONY: all clean $(SUBDIRS)
-all: $(SUBDIRS)
+.PHONY: all clean $(SUBDIRS_ALL)
 
-$(SUBDIRS):
+all: $(SUBDIRS_ALL)
+
+$(SUBDIRS_ALL):
 	make -C $@ all
 
+install_xib:
+	make xib
+	sudo insmod ./xib/xib.ko
+
+install_eth:
+	make eth
+	sudo insmod ./eth/xtic_nic.ko
+
 clean:
-	@for dir in $(SUBDIRS); do \
+	@for dir in $(SUBDIRS_ALL); do \
 		make -C $$dir clean; \
 	done
+	sudo rmmod xib eth

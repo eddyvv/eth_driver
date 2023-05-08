@@ -1,8 +1,8 @@
 KERNELDIR_ := /lib/modules/$(shell uname -r)/build
 
-obj-m += xilinx_ib.o
+obj-m += xib.o
 
-xilinx_ib-objs := main.o
+xib-objs := main.o
 
 all:
 	$(MAKE) -C $(KERNELDIR_) M=$(CURDIR) modules
