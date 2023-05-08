@@ -11,17 +11,14 @@ ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_4))
 EXTRA_CFLAGS += -DLINUX_5_4
 endif
 
-ccflags-y += -I$(shell pwd)
+MODULE_NAME := xtic_nic
 
-SUBDIRS := eth xib
+obj-m := $(MODULE_NAME).o
 
-.PHONY: all clean $(SUBDIRS)
-all: $(SUBDIRS)
+$(MODULE_NAME)-objs := xtic_enet_main.o xtic_enet_dma.o xtic_enet_cdev.o
 
-$(SUBDIRS):
-	make -C $@ all
+all:
+	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) modules
 
 clean:
-	@for dir in $(SUBDIRS); do \
-		make -C $$dir clean; \
-	done
+	make -C $(KERNELDIR) M=$(CURDIR) clean
