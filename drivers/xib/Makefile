@@ -7,7 +7,9 @@ MODULE_NAME := xib
 
 obj-m += $(MODULE_NAME).o
 
-$(MODULE_NAME)-objs := main.o ../eth/xt_roce.o
+KBUILD_EXTRA_SYMBOLS = $(PWD)/eth/Module.symvers
+
+$(MODULE_NAME)-objs := main.o
 
 all:
 	$(MAKE) -C $(KERNELDIR_) M=$(CURDIR) modules
