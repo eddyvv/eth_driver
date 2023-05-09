@@ -724,12 +724,11 @@ static inline u32 axienet_ior(struct axienet_local *lp, off_t offset)
 
 
 
-
-
-
-
-
-
+/*
+ * internal function to initialize-cleanup roce device.
+ */
+void xt_roce_dev_add(void);
+void xt_roce_dev_remove(void);
 
 
 
