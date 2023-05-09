@@ -3,7 +3,7 @@
 
 编译：
 ```bash
-$ cd code
+$ cd drivers
 $ export PWD=$(pwd)
 $ make
 ```
