@@ -3,14 +3,11 @@ $(error PWD variable is not set; Please check README!!!)
 endif
 
 include mk/common.mk
-
-ccflags-y := -I $(PWD)/eth
-
 SUBDIRS_ALL := eth xib
+
 .PHONY: all clean install install_xib install_eth $(SUBDIRS_ALL)
 
 all: $(SUBDIRS_ALL)
-
 $(SUBDIRS_ALL):
 	make -C $@ all
 

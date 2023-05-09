@@ -45,7 +45,7 @@ static void xib_add(void)
 
 static struct xib_driver xib_driver = {
     .name = "xib driver",
-    .probe = xib_add,
+    .add = xib_add,
 };
 
 static int __init xtic_ib_init(void)

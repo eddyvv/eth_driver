@@ -8,7 +8,7 @@
 
 struct xib_driver {
     unsigned char name[32];
-    void (*probe) (void);
+    void (*add) (void);
     void (*remove) (void);
 };
 
