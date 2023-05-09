@@ -4,6 +4,8 @@ endif
 
 include mk/common.mk
 
+ccflags-y := -I $(PWD)/eth
+
 SUBDIRS_ALL := eth xib
 .PHONY: all clean install install_xib install_eth $(SUBDIRS_ALL)
 
@@ -17,6 +19,9 @@ install_xib:
 	sudo insmod ./xib/xib.ko
 
 install_eth:
+ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_15))
+	sudo rmmod e1000
+endif
 	make eth
 	sudo insmod ./eth/xtic_nic.ko
 
@@ -24,6 +29,11 @@ install:
 	make all
 	sudo insmod ./eth/xtic_nic.ko
 	sudo insmod ./xib/xib.ko
+
+ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_15))
+install_e1000:
+	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
+endif
 
 clean:
 	@for dir in $(SUBDIRS_ALL); do \

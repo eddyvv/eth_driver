@@ -253,6 +253,15 @@
 
 #define XTNET_MAX_IRQ 256
 #define NODE_ADDRESS_SIZE 6
+
+/*
+ * ROCE
+ */
+#define xt_roce_supported(adapter)	(skyhawk_chip(adapter) && \
+					(adapter->function_mode & RDMA_ENABLED))
+
+
+
 enum xtenet_pci_status {
     XTNET_PCI_STATUS_DISABLED,
     XTNET_PCI_STATUS_ENABLED,
@@ -556,6 +565,11 @@ struct axienet_local {
     /* 网络设备 */
     struct net_device   *ndev;
     const struct axienet_config *axienet_config;
+
+    /* ROCE */
+    struct list_head entry;
+    u32 function_mode;
+
 };
 
 int __maybe_unused axienet_dma_q_init(struct net_device *ndev,
@@ -727,7 +741,7 @@ static inline u32 axienet_ior(struct axienet_local *lp, off_t offset)
 /*
  * internal function to initialize-cleanup roce device.
  */
-void xt_roce_dev_add(void);
+void xt_roce_dev_add(struct axienet_local *adapter);
 void xt_roce_dev_remove(void);
 
 

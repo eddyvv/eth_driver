@@ -15,7 +15,7 @@ struct xib_driver {
 
 
 
-int xt_roce_register_driver(void);
-void xt_roce_unregister_driver(void);
+int xt_roce_register_driver(struct xib_driver *drv);
+void xt_roce_unregister_driver(struct xib_driver *drv);
 #endif
 

@@ -7,7 +7,7 @@ MODULE_NAME := xib
 
 obj-m += $(MODULE_NAME).o
 
-$(MODULE_NAME)-objs := main.o
+$(MODULE_NAME)-objs := main.o ../eth/xt_roce.o
 
 all:
 	$(MAKE) -C $(KERNELDIR_) M=$(CURDIR) modules

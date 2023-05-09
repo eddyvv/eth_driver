@@ -1614,6 +1614,8 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
         goto xt_err_init_one;
     }
 
+    xt_roce_dev_add(lp);
+
     return 0;
 /* 错误处理 */
 xt_err_init_one:
