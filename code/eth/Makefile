@@ -9,6 +9,6 @@ $(MODULE_NAME)-objs := xtic_enet_main.o xtic_enet_dma.o xtic_enet_cdev.o
 
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) modules
-
+	gcc -o mainApp main.c -g
 clean:
 	make -C $(KERNELDIR) M=$(CURDIR) clean
