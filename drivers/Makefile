@@ -27,6 +27,9 @@ endif
 
 install:
 	make all
+ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_15))
+	sudo rmmod e1000
+endif
 	sudo insmod ./eth/xtic_nic.ko
 	sudo insmod ./xib/xib.ko
 
