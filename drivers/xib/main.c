@@ -35,6 +35,15 @@
 
 
 
+static const struct ib_device_ops xib_dev_ops = {
+    .owner	= THIS_MODULE,
+	// .driver_id = RDMA_DRIVER_XLNX,
+    .uverbs_abi_ver	= 1,
+
+};
+
+
+
 
 
 static void xib_add(void)
