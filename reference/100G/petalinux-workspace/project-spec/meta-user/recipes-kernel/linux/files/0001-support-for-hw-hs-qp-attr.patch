@@ -1,0 +1,26 @@
+From af736038b20010cefcced5894e7ab69a2d8a8796 Mon Sep 17 00:00:00 2001
+From: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+Date: Thu, 26 Nov 2020 11:45:33 +0530
+Subject: [PATCH] support for hw hs qp attr
+
+Signed-off-by: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+---
+ include/uapi/rdma/ib_user_verbs.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/uapi/rdma/ib_user_verbs.h b/include/uapi/rdma/ib_user_verbs.h
+index 8ef3b65..a420ac3 100644
+--- a/include/uapi/rdma/ib_user_verbs.h
++++ b/include/uapi/rdma/ib_user_verbs.h
+@@ -590,7 +590,7 @@ enum {
+ 	/*
+ 	 * This value is equal to IB_QP_DEST_QPN.
+ 	 */
+-	IB_USER_LEGACY_LAST_QP_ATTR_MASK = 1ULL << 20,
++	IB_USER_LEGACY_LAST_QP_ATTR_MASK = 1ULL << 29,
+ };
+ 
+ enum {
+-- 
+2.7.4
+

@@ -1,0 +1,42 @@
+From 08ddda45581cbed335a19de27156e915a4ab5b43 Mon Sep 17 00:00:00 2001
+From: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+Date: Wed, 5 Aug 2020 17:00:37 +0530
+Subject: [PATCH] arm64 zone dev support
+
+Signed-off-by: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+---
+ arch/arm64/Kconfig | 3 +++
+ mm/Kconfig         | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 3f047af..73e0d5d 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -273,6 +273,9 @@ config ZONE_DMA32
+ config ARCH_ENABLE_MEMORY_HOTPLUG
+ 	def_bool y
+ 
++config ARCH_ENABLE_MEMORY_HOTREMOVE
++	def_bool y
++
+ config SMP
+ 	def_bool y
+ 
+diff --git a/mm/Kconfig b/mm/Kconfig
+index a5dae9a..bf0ed97 100644
+--- a/mm/Kconfig
++++ b/mm/Kconfig
+@@ -263,6 +263,9 @@ config CONTIG_ALLOC
+ config PHYS_ADDR_T_64BIT
+ 	def_bool 64BIT
+ 
++config ARCH_MEMORY_PROBE
++	def_bool y
++	depends on MEMORY_HOTPLUG
+ config BOUNCE
+ 	bool "Enable bounce buffers"
+ 	default y
+-- 
+2.7.4
+

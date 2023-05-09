@@ -1,0 +1,28 @@
+From b535de0d7ea90f5a732a6564bda60335bdaaafa4 Mon Sep 17 00:00:00 2001
+From: priyadar <priyadarshini.babu@xilinx.com>
+Date: Thu, 8 Apr 2021 20:07:53 +0530
+Subject: [PATCH 2/2] ERNIC v3.1 patch
+
+Add compatible string support for ERNIC_3.1 version
+
+Signed-off-by: priyadar <priyadarshini.babu@xilinx.com>
+---
+ providers/xib/xib_u.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/providers/xib/xib_u.c b/providers/xib/xib_u.c
+index 662a1eb..5aa9384 100644
+--- a/providers/xib/xib_u.c
++++ b/providers/xib/xib_u.c
+@@ -16,6 +16,8 @@ static const struct verbs_match_ent hca_table[] = {
+ 	VERBS_MODALIAS_MATCH("of:N*T*Cxlnx,ernic-2.0", NULL),
+ 	VERBS_MODALIAS_MATCH("of:N*T*Cxlnx,ernic-3.0C*", NULL),
+ 	VERBS_MODALIAS_MATCH("of:N*T*Cxlnx,ernic-3.0", NULL),
++	VERBS_MODALIAS_MATCH("of:N*T*Cxlnx,ernic-3.1C*", NULL),
++	VERBS_MODALIAS_MATCH("of:N*T*Cxlnx,ernic-3.1", NULL),
+ 	{}
+ };
+ 
+-- 
+1.8.3.1
+

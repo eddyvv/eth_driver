@@ -1,0 +1,39 @@
+From c50bafdc0e5c55add5a1a0a1e82a0bbc6217f1d8 Mon Sep 17 00:00:00 2001
+From: anjaneyu <anjaneyu@xilinx.com>
+Date: Fri, 10 Jan 2020 14:28:23 +0530
+Subject: [PATCH] Support to enable hw accl
+
+Signed-off-by: anjaneyu <anjaneyu@xilinx.com>
+---
+ include/rdma/ib_verbs.h | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/include/rdma/ib_verbs.h b/include/rdma/ib_verbs.h
+index eed9fc4..c35f671 100644
+--- a/include/rdma/ib_verbs.h
++++ b/include/rdma/ib_verbs.h
+@@ -1230,6 +1230,7 @@ enum ib_qp_attr_mask {
+ #ifdef IB_CHANGES_XIB_NVMF
+ 	IB_QP_RST_RQ                    = (1<<26),
+ 	IB_QP_RST_SQ_CQ                 = (1<<27),
++	IB_ENABLE_QP_HW_ACCL		= (1<<28),
+ #endif
+ };
+ 
+@@ -1282,7 +1283,12 @@ struct ib_qp_attr {
+ 	u8			alt_timeout;
+ 	u32			rate_limit;
+ #ifdef IB_CHANGES_XIB_NVMF
+-	int                     nvmf_rhost;
++	union {
++		int		nvmf_rhost;
++		/* Rx packets to be processed */
++		int		rx_pkt_pending;
++		
++	};
+ 	dma_addr_t              rq_ba_p;
+ 	dma_addr_t              sq_ba_p;
+ #endif
+-- 
+2.7.4
+

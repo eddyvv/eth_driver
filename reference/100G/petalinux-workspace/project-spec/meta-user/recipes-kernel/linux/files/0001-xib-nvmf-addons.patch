@@ -1,0 +1,50 @@
+From 5e511b691accb0bdbc5dcc392c3ec292e43ea3ef Mon Sep 17 00:00:00 2001
+From: priyadar <priyadarshini.babu@xilinx.com>
+Date: Fri, 28 May 2021 15:46:55 +0530
+Subject: [PATCH] xib nvmf addons
+
+Added xib nvmf addons
+Signed-off-by: priyadar <priyadarshini.babu@xilinx.com>
+---
+ include/rdma/ib_verbs.h | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/include/rdma/ib_verbs.h b/include/rdma/ib_verbs.h
+index 9bf6c31..592dc7f 100644
+--- a/include/rdma/ib_verbs.h
++++ b/include/rdma/ib_verbs.h
+@@ -42,6 +42,8 @@
+ #include <uapi/rdma/rdma_user_ioctl.h>
+ #include <uapi/rdma/ib_user_ioctl_verbs.h>
+ 
++#define IB_CHANGES_XIB_NVMF
++
+ #define IB_FW_VERSION_NAME_MAX	ETHTOOL_FWVERS_LEN
+ 
+ struct ib_umem_odp;
+@@ -1234,6 +1236,10 @@ enum ib_qp_attr_mask {
+ 	IB_QP_RESERVED3			= (1<<23),
+ 	IB_QP_RESERVED4			= (1<<24),
+ 	IB_QP_RATE_LIMIT		= (1<<25),
++#ifdef IB_CHANGES_XIB_NVMF
++	IB_QP_RST_RQ                    = (1<<26),
++	IB_QP_RST_SQ_CQ                 = (1<<27),
++#endif
+ };
+ 
+ enum ib_qp_state {
+@@ -1285,6 +1291,11 @@ struct ib_qp_attr {
+ 	u8			alt_timeout;
+ 	u32			rate_limit;
+ 	struct net_device	*xmit_slave;
++#ifdef IB_CHANGES_XIB_NVMF
++	int                     nvmf_rhost;
++	dma_addr_t              rq_ba_p;
++	dma_addr_t              sq_ba_p;
++#endif
+ };
+ 
+ enum ib_wr_opcode {
+-- 
+1.8.3.1
+

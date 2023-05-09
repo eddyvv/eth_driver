@@ -1,0 +1,44 @@
+From 8596024a2f5adc005cb1116bf633f1572aa2c306 Mon Sep 17 00:00:00 2001
+From: priyadar <priyadarshini.babu@xilinx.com>
+Date: Mon, 12 Apr 2021 11:46:29 +0530
+Subject: [PATCH] Changes for versal
+
+Changed db_pa size from int to long for > 32 bit ERNIC addr
+Added memset for poll_cq - sq
+
+Signed-off-by: priyadar <priyadarshini.babu@xilinx.com>
+---
+ providers/xib/xib_u.h       | 4 ++--
+ providers/xib/xib_u_verbs.c | 1 +
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/providers/xib/xib_u.h b/providers/xib/xib_u.h
+index cd0207f..fb37ff3 100644
+--- a/providers/xib/xib_u.h
++++ b/providers/xib/xib_u.h
+@@ -42,8 +42,8 @@ struct xib_context {
+ 	uint32_t			cq_ci_db_size, rq_pi_db_size;
+ 	void				*cq_ci_shpg, *rq_pi_shpg;
+ 
+-	unsigned int			db_pa;
+-	unsigned int			db_size;
++	unsigned long			db_pa;
++	unsigned long			db_size;
+ 
+ 	void				*ddr_db_addr;
+ 	uint64_t			ddr_db_pa;
+diff --git a/providers/xib/xib_u_verbs.c b/providers/xib/xib_u_verbs.c
+index d791127..70cb68e 100644
+--- a/providers/xib/xib_u_verbs.c
++++ b/providers/xib/xib_u_verbs.c
+@@ -662,6 +662,7 @@ int xib_u_poll_cq(struct ibv_cq *ibvcq, int num_entries,
+ 				cur_send_cq_head, sq->send_cq_db_local); */
+ 		/* send queue completions */
+ 		while (i < num_entries && sq->send_cq_db_local != cur_send_cq_head) {
++			memset(&wc[i], 0, sizeof(*wc));
+ 			if (sq->send_cq_db_local == sq->max_wr)
+ 				sq->send_cq_db_local = 0;
+ 			if (!sq->wr_id_array[sq->send_cq_db_local].signaled) {
+-- 
+1.8.3.1
+

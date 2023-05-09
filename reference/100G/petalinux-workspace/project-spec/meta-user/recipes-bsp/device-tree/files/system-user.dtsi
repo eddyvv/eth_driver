@@ -1,0 +1,84 @@
+/ {
+	memory {
+		device_type = "memory";
+		reg = <0x0 0x0 0x0 0x5ff00000>;
+	};
+        chosen {
+		bootargs = "earlycon clk_ignore_unused console=ttyPS0,115200 cpuidle.off=1";
+                stdout-path = "serial0:115200n8";
+        };
+
+	aliases {
+		ethernet0 = &gem0;
+                ethernet1 = &gem1;
+		serial0 = &uart1;
+		serial1 = &uart0;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		ps_reserved: buffer@0x60000000 {
+			compatible = "shared-dma-pool";
+			xlnx,proc-access = <0x1>;
+			reg = <0x00000000 0x60000000 0x0 0x20000000>;
+        	};
+
+		pl_reserved: buffer@0x400000000 {
+			compatible = "shared-dma-pool";
+			xlnx,proc-access = <0x1>;
+			reg = <0x00000004 0x00000000 0x0 0x5F000000>;
+		};
+
+		pl_db_mem: buffer@0x45F000000 {
+			compatible = "shared-dma-pool";
+			xlnx,proc-access = <0x1>;
+			reg = <0x00000004 0x5F000000 0x0 0x1000000>;
+		};
+	};
+
+	pl_allocator@1 {
+		compatible = "xlnx,pl-allocator-1.0";
+		memory-region = <&pl_db_mem>;
+	};
+
+	xib_kmm@2 {
+		compatible = "xlnx,xib-kmm-1.0";
+		memory-region = <&ps_reserved>;
+		pl-mem-region = <&pl_reserved>;
+	};
+};
+
+&uart0 {
+	status="okay";
+};
+
+&uart1 {
+	status="okay";
+};
+
+&ernic_1 {
+	interrupt-names = "xrnic_intr0";
+	eth-handle = <&cmac_usplus_0>;
+};
+
+&axi_bram_ctrl_0 {
+	xlnx,proc-access = <0x0>;
+	xlnx,include-dre ;
+};
+
+&axi_dma_1 {
+	xlnx,include-dre ;
+};
+
+&cmac_usplus_0 {
+	axistream-connected = <&axi_dma_1>;
+	local-mac-address = [00 0a 35 00 00 01];
+	compatible = "xlnx,cmac-usplus-2.4";
+	axigpio-handle = <&axi_gpio_0>;
+};
+&axi_gpio_0 {
+	compatible = "xlnx,axi-gpio-2.0";
+};

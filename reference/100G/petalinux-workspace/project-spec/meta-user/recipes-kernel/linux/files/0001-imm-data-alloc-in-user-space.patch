@@ -1,0 +1,25 @@
+From 998df8cc1b957ddb6dcb881fbc38c0fee931caea Mon Sep 17 00:00:00 2001
+From: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+Date: Wed, 25 Nov 2020 17:35:13 +0530
+Subject: [PATCH] imm data alloc in user space
+
+Signed-off-by: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+---
+ include/uapi/rdma/xib-abi.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/uapi/rdma/xib-abi.h b/include/uapi/rdma/xib-abi.h
+index bdaabaa..b7c9103 100755
+--- a/include/uapi/rdma/xib-abi.h
++++ b/include/uapi/rdma/xib-abi.h
+@@ -46,6 +46,7 @@ struct xib_ib_create_qp {
+ 	__aligned_u64 sq_ba;
+ 	__aligned_u64 rq_ba;
+ 	__aligned_u64 cq_ba;
++	__aligned_u64 imm_inv_ba;
+ };
+ 
+ struct xib_ib_alloc_pd_resp {
+-- 
+2.7.4
+

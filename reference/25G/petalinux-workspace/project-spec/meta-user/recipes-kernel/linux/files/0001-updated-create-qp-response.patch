@@ -1,0 +1,27 @@
+From d7f09281d1d78c82bd3dde121602ebcd6b9faf16 Mon Sep 17 00:00:00 2001
+From: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+Date: Tue, 4 Aug 2020 20:39:08 +0530
+Subject: [PATCH] updated create qp response
+
+Signed-off-by: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+---
+ include/uapi/rdma/xib-abi.h | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/include/uapi/rdma/xib-abi.h b/include/uapi/rdma/xib-abi.h
+index 9afc756..a278334 100755
+--- a/include/uapi/rdma/xib-abi.h
++++ b/include/uapi/rdma/xib-abi.h
+@@ -58,9 +58,7 @@ struct xib_ib_create_cq_resp {
+ };
+ 
+ struct xib_ib_create_qp_resp {
+-	__aligned_u64 uarea_p;
+ 	__u32 qpn;
+-	__u32 uarea_size;
+ 	__u32 cap_flags;
+ };
+ 
+-- 
+2.7.4
+

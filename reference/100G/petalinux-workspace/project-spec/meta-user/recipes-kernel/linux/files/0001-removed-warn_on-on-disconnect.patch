@@ -1,0 +1,27 @@
+From be1bf0641d235e9275a22e6340dbe38f1ec3bb29 Mon Sep 17 00:00:00 2001
+From: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+Date: Tue, 9 Jun 2020 14:35:15 +0530
+Subject: [PATCH] removed warn_on on disconnect
+
+Signed-off-by: Anjaneyulu Reddy Mule <anjaneyulu.reddy.mule@xilinx.com>
+---
+ drivers/infiniband/core/rdma_core.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/infiniband/core/rdma_core.c b/drivers/infiniband/core/rdma_core.c
+index ccf4d069c25c..034814412168 100644
+--- a/drivers/infiniband/core/rdma_core.c
++++ b/drivers/infiniband/core/rdma_core.c
+@@ -844,7 +844,9 @@ static int __uverbs_cleanup_ufile(struct ib_uverbs_file *ufile,
+ 		 * if we hit this WARN_ON, that means we are
+ 		 * racing with a lookup_get.
+ 		 */
++#if 0
+ 		WARN_ON(uverbs_try_lock_object(obj, UVERBS_LOOKUP_WRITE));
++#endif
+ 		if (!uverbs_destroy_uobject(obj, reason, &attrs))
+ 			ret = 0;
+ 		else
+-- 
+2.25.0
+

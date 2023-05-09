@@ -1,0 +1,52 @@
+From a88fa74538da52bb373d6f4b0e560f713791e906 Mon Sep 17 00:00:00 2001
+From: priyadar <priyadar@xilinx.com>
+Date: Wed, 16 Jun 2021 19:04:22 +0530
+Subject: [PATCH] Corrected xib_u_reg_mr function prototype
+
+Signed-off-by: priyadar <priyadar@xilinx.com>
+---
+ providers/xib/xib_u.h       | 4 ++--
+ providers/xib/xib_u_verbs.c | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/providers/xib/xib_u.h b/providers/xib/xib_u.h
+index fb37ff3..5ee8082 100644
+--- a/providers/xib/xib_u.h
++++ b/providers/xib/xib_u.h
+@@ -187,9 +187,9 @@ int xib_u_query_port(struct ibv_context *context, uint8_t port,
+ struct ibv_pd *xib_u_alloc_pd(struct ibv_context *context);
+ int xib_u_free_pd(struct ibv_pd *pd);
+ struct ibv_mr *xib_u_reg_mr(struct ibv_pd *pd, void *addr, size_t length,
+-				int access);
++				uint64_t hca_va, int access);
+ struct ibv_mr *xib_u_reg_mr_ex(struct ibv_pd *pd, uint64_t addr, uint64_t length,
+-				int access);
++				uint64_t hca_va, int access);
+ int xib_u_rereg_mr(struct ibv_mr *mr, int flags, struct ibv_pd *pd,
+ 			void *addr, size_t length, int access);
+ int xib_u_dereg_mr(struct ibv_mr *mr);
+diff --git a/providers/xib/xib_u_verbs.c b/providers/xib/xib_u_verbs.c
+index 70cb68e..37be1e5 100644
+--- a/providers/xib/xib_u_verbs.c
++++ b/providers/xib/xib_u_verbs.c
+@@ -109,7 +109,7 @@ int xib_u_free_pd(struct ibv_pd *pd)
+ }
+ 
+ struct ibv_mr *xib_u_reg_mr(struct ibv_pd *pd, void *addr, size_t length,
+-				int access)
++				uint64_t hca_va, int access)
+ {
+ 	int ret;
+ 	unsigned int id;
+@@ -167,7 +167,7 @@ struct ibv_mr *xib_u_reg_mr(struct ibv_pd *pd, void *addr, size_t length,
+ }
+ 
+ struct ibv_mr *xib_u_reg_mr_ex(struct ibv_pd *pd, uint64_t addr, uint64_t length,
+-				int access)
++				uint64_t hca_va, int access)
+ {
+ 	int ret;
+ 	unsigned int id;
+-- 
+2.7.4
+

@@ -1,0 +1,28 @@
+From 8eeceab5db023851ffcd015204ba7ea2f4aef1ae Mon Sep 17 00:00:00 2001
+From: priyadar <priyadarshini.babu@xilinx.com>
+Date: Mon, 31 May 2021 17:58:10 +0530
+Subject: [PATCH] Add RDMA driver ID for ERNIC
+
+Kernel 5.2 requires unique driver for each driver that's registered
+with the IB core.
+
+Signed-off-by: priyadar <priyadarshini.babu@xilinx.com>
+---
+ include/uapi/rdma/ib_user_ioctl_verbs.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/uapi/rdma/ib_user_ioctl_verbs.h b/include/uapi/rdma/ib_user_ioctl_verbs.h
+index 2248379..ea645c7 100644
+--- a/include/uapi/rdma/ib_user_ioctl_verbs.h
++++ b/include/uapi/rdma/ib_user_ioctl_verbs.h
+@@ -249,6 +249,7 @@ enum rdma_driver_id {
+ 	RDMA_DRIVER_QIB,
+ 	RDMA_DRIVER_EFA,
+ 	RDMA_DRIVER_SIW,
++	RDMA_DRIVER_XLNX,
+ };
+ 
+ enum ib_uverbs_gid_type {
+-- 
+1.8.3.1
+
