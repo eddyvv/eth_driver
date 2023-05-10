@@ -6,6 +6,7 @@
 #define XDMA0_B_BASE          0x00000000
 #define AXIDMA_1_BASE         0x00200000
 #define XXV_ETHERNET_0_BASE   0x00100000
+#define XIB_BASE              0x00300000
 
 #define XTIC_ENABLE_TSN     true
 #define XTIC_DISABLE_TSN    false

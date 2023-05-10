@@ -932,6 +932,7 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     dev->axidma_addr = dev->bar_addr + AXIDMA_1_BASE;
     dev->xdma_addr = dev->bar_addr + XDMA0_CTRL_BASE;
     dev->xxv_addr = dev->bar_addr + XXV_ETHERNET_0_BASE;
+    dev->xib_addr = dev->bar_addr + XIB_BASE;
     xt_printk("bar0 \t\t= 0x%llx\n", dev->bar_addr);
     xt_printk("dev->axidma_addr = 0x%llx\n", dev->axidma_addr);
     xt_printk("dev->xdma_addr \t= 0x%llx\n", dev->xdma_addr);
@@ -961,6 +962,7 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     dev->axidma_regs = dev->regs + AXIDMA_1_BASE;
     dev->xdma_regs = dev->regs + XDMA0_CTRL_BASE;
     dev->xxv_regs = dev->regs + XXV_ETHERNET_0_BASE;
+    dev->xib_regs = dev->regs + XIB_BASE;
     xt_printk("dev->regs \t= 0x%x\n",(unsigned int)(long)dev->regs);
     xt_printk("dev->axidma_regs = 0x%x\n",(unsigned int)(long)dev->axidma_regs);
     xt_printk("dev->xdma_regs \t= 0x%x\n",(unsigned int)(long)dev->xdma_regs);
