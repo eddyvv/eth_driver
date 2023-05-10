@@ -34,6 +34,8 @@
 #include "xib.h"
 #include "ib_verbs.h"
 
+struct xilinx_ib_dev *ibdev;
+
 unsigned int app_qp_cnt = 10;
 
 unsigned int app_qp_depth = 16;
@@ -105,6 +107,45 @@ static int xib_mmap(struct ib_ucontext *ibucontext,
 		return -EAGAIN;
 	}
 	return 0;
+}
+
+struct ib_mr *xib_alloc_mr(struct ib_pd *ibpd,
+				enum ib_mr_type mr_type,
+				u32 max_num_sg)
+{
+        struct xilinx_ib_dev *xib = ibdev;
+	struct xib_mr *mr = NULL;
+	struct xib_pd *pd = get_xib_pd(ibpd);
+	u32 mr_idx;
+	u8 rkey;
+	int ret;
+
+	mr = kzalloc(sizeof(*mr), GFP_KERNEL);
+	if (!mr) {
+		pr_err("Failed to allocate memory for mr\n");
+		return NULL;
+	}
+
+	spin_lock_bh(&xib->lock);
+	ret = xib_bmap_alloc_id(&xib->mr_map, &mr_idx);
+	spin_unlock_bh(&xib->lock);
+	if (ret < 0)
+		goto fail;
+
+	get_random_bytes(&rkey, sizeof(rkey));
+	/* Alloc mr pointer */
+	mr->ib_mr.lkey = (mr_idx << 8) | rkey;
+	mr->ib_mr.rkey = (mr_idx << 8) | rkey;
+	mr->mr_idx = mr_idx;
+	mr->rkey = rkey;
+	mr->pd = pd->pdn;
+	mr->ib_mr.device = &xib->ib_dev;
+
+	mr->type = XIB_MR_USER;
+	return &mr->ib_mr;
+fail:
+	kfree(mr);
+	return NULL;
 }
 
 static int xib_alloc_pd(struct ib_pd *ibpd,
@@ -285,6 +326,7 @@ static const struct ib_device_ops xib_dev_ops = {
     .add_gid	= xib_add_gid,
 	.del_gid	= xib_del_gid,
     .alloc_pd	= xib_alloc_pd,
+	.alloc_mr	= xib_alloc_mr, 
 };
 
 

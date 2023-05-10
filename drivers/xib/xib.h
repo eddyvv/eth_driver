@@ -46,6 +46,20 @@ struct xib_pd {
 	u32			pdn;
 };
 
+enum xib_mr_type {
+	XIB_MR_DMA,
+	XIB_MR_USER
+};
+struct xib_mr {
+	struct ib_mr		ib_mr;
+	struct ib_umem		*umem;
+	u64			size;
+	u32			mr_idx;
+	u32			pd;
+	int			type;
+	u8			rkey;
+};
+
 struct xib_ucontext {
 	struct ib_ucontext	ib_uc;
 	int			pfn;
