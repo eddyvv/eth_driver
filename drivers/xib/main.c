@@ -109,6 +109,45 @@ static int xib_mmap(struct ib_ucontext *ibucontext,
 	return 0;
 }
 
+int xib_map_mr_sge(struct ib_mr *ibmr, struct scatterlist *sg, int sg_nents,
+			 unsigned int *sg_offset)
+
+{
+        struct xilinx_ib_dev *xib = ibdev;
+	struct xib_mr *mr = get_xib_mr(ibmr);
+	u64 pa = sg->dma_address;
+	u64 va = sg->offset;
+	u64 vaddr = va;
+	u64 length = sg_dma_len(sg);
+	int ret;
+#ifndef CONFIG_64BIT	
+	if (pa < 0xFFFFFFFF) {
+		vaddr = (u32)(uintptr_t)va;
+	}
+#endif
+	if (sg == NULL) {
+		pr_err("%s: scatterlist is NULL\n", __func__);
+		goto fail;
+	}
+
+	if(sg_nents > 1) {
+		pr_err("%s: SGE entries cannot be more than 1\n", __func__);
+		goto fail;
+	}
+	ret = xrnic_reg_mr(xib, vaddr, length, &pa, sg_nents, mr->pd, mr->mr_idx, mr->rkey);
+	if (ret) {
+		pr_err("%s:Failed to register MR\n", __func__);
+		goto fail;
+	}
+	return ret;
+fail:
+	spin_lock_bh(&xib->lock);
+	xib_bmap_release_id(&xib->mr_map, mr->mr_idx);
+	spin_unlock_bh(&xib->lock);
+	kfree(mr);
+	return -1;
+}
+
 struct ib_mr *xib_alloc_mr(struct ib_pd *ibpd,
 				enum ib_mr_type mr_type,
 				u32 max_num_sg)
@@ -182,6 +221,26 @@ err:
 	xib_bmap_release_id(&xib->pd_map, pd->pdn);
 	spin_unlock_bh(&xib->lock);
 	return ret;
+}
+
+static int xib_dealloc_pd(struct ib_pd *ibpd, struct ib_udata * udata)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibpd->device);
+	struct xib_pd *pd = get_xib_pd(ibpd);
+
+	dev_dbg(&xib->ib_dev.dev, "%s : <---------- \n", __func__);
+
+	xib_bmap_release_id(&xib->pd_map, pd->pdn);
+	
+	/* TODO tell hw about dealloc? */
+	return 0;
+}
+
+/*u8 port 编译不通过 更改为u32,函数定义在netfiliter/x_tables.h*/
+static enum rdma_link_layer xib_get_link_layer(struct ib_device *device,
+						    u32 port_num)
+{
+	return IB_LINK_LAYER_ETHERNET;
 }
 
 static int xib_query_device(struct ib_device *ibdev,
@@ -327,6 +386,9 @@ static const struct ib_device_ops xib_dev_ops = {
 	.del_gid	= xib_del_gid,
     .alloc_pd	= xib_alloc_pd,
 	.alloc_mr	= xib_alloc_mr, 
+	.map_mr_sg	= xib_map_mr_sge,
+	.dealloc_pd	= xib_dealloc_pd,	
+	.get_link_layer	= xib_get_link_layer,
 };
 
 
