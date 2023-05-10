@@ -14,3 +14,14 @@
  * called, and thus the data rx in READ response is being filled in the
  * SGL memory but not in the user space buffer directly. The fix, that's
  * being made here works only for 32Bit machines */
+
+int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num)
+{
+	*id_num = find_first_zero_bit(bmap->bitmap, bmap->max_count);
+	if (*id_num >= bmap->max_count)
+		return -EINVAL;
+
+	__set_bit(*id_num, bmap->bitmap);
+
+	return 0;
+}
