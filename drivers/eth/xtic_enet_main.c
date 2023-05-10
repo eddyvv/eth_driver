@@ -78,7 +78,7 @@ static void xxvenet_setoptions(struct net_device *ndev, u32 options)
     struct axienet_local *lp = netdev_priv(ndev);
     struct xxvenet_option *tp;
 
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     tp = &xxvenet_options[0];
 
     while (tp->opt) {
@@ -91,7 +91,7 @@ static void xxvenet_setoptions(struct net_device *ndev, u32 options)
 
     lp->options |= options;
 
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
 }
 
 /**
@@ -108,7 +108,7 @@ static int axienet_dma_bd_init(struct net_device *ndev)
 {
     int i, ret = -EINVAL;
     struct axienet_local *lp = netdev_priv(ndev);
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     for_each_rx_dma_queue(lp, i) {
         ret = axienet_dma_q_init(ndev, lp->dq[i]);
         if (ret != 0) {
@@ -116,7 +116,7 @@ static int axienet_dma_bd_init(struct net_device *ndev)
             break;
         }
     }
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
     return ret;
 }
 
@@ -162,12 +162,11 @@ static void xtnet_device_reset(struct net_device *ndev)
     u32 err, val;
     struct axienet_dma_q *q;
     u32 i;
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     if (lp->axienet_config->mactype == XAXIENET_10G_25G) {
         /* Reset the XXV MAC */
         val = axienet_xxv_ior(lp, XXV_GT_RESET_OFFSET);
         val |= XXV_GT_RESET_MASK;
-        xt_printk("val = %x\n", val);
         axienet_xxv_iow(lp, XXV_GT_RESET_OFFSET, val);
         /* Wait for 1ms for GT reset to complete as per spec */
         mdelay(1);
@@ -237,7 +236,7 @@ static void xtnet_device_reset(struct net_device *ndev)
 
     netif_trans_update(ndev);
 
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
 }
 
 /**
@@ -252,11 +251,11 @@ void axienet_dma_bd_release(struct net_device *ndev)
 {
     int i;
     struct axienet_local *lp = netdev_priv(ndev);
-    xt_printk("%s start\n",__func__);
+    xt_printfunc("%s start\n",__func__);
     for_each_rx_dma_queue(lp, i) {
         axienet_bd_free(ndev, lp->dq[i]);
     }
-    xt_printk("%s end\n",__func__);
+    xt_printfunc("%s end\n",__func__);
 }
 static int xtenet_open(struct net_device *ndev)
 {
@@ -264,7 +263,7 @@ static int xtenet_open(struct net_device *ndev)
     u32 reg, err;
     struct axienet_local *lp = netdev_priv(ndev);
     struct axienet_dma_q *q;
-    xt_printk("%s start\n",__func__);
+    xt_printfunc("%s start\n",__func__);
     xtnet_device_reset(ndev);
 #if defined(LINUX_5_4)
     if (!lp->is_tsn) {
@@ -379,7 +378,7 @@ static int xtenet_open(struct net_device *ndev)
         netdev_info(ndev, "USXGMII setup at %d\n", lp->usxgmii_rate);
     }
     netif_tx_start_all_queues(ndev);
-    xt_printk("%s end\n",__func__);
+    xt_printfunc("%s end\n",__func__);
     return 0;
 
 err_eth_irq:
@@ -408,7 +407,7 @@ static int xticenet_stop(struct net_device *ndev)
     u32 i;
     struct axienet_local *lp = netdev_priv(ndev);
     struct axienet_dma_q *q;
-    xt_printk("%s start\n",__func__);
+    xt_printfunc("%s start\n",__func__);
     dev_dbg(&ndev->dev, "axienet_close()\n");
 
     lp->axienet_config->setoptions(ndev, lp->options &
@@ -458,7 +457,7 @@ static int xticenet_stop(struct net_device *ndev)
             axienet_dma_bd_release(ndev);
     }
 
-    xt_printk("%s end\n",__func__);
+    xt_printfunc("%s end\n",__func__);
     return 0;
 }
 
@@ -503,7 +502,7 @@ int axienet_queue_xmit(struct sk_buff *skb,
     unsigned long flags;
     struct axienet_dma_q *q;
 
-    xt_printk("%s start\n",__func__);
+    xt_printfunc("%s start\n",__func__);
     if (lp->axienet_config->mactype == XAXIENET_10G_25G ||
         lp->axienet_config->mactype == XAXIENET_MRMAC) {
         /* Need to manually pad the small frames in case of XXV MAC
@@ -519,7 +518,6 @@ int axienet_queue_xmit(struct sk_buff *skb,
         }
     }
     num_frag = skb_shinfo(skb)->nr_frags;
-    xt_printk("%s num_frag = 0x%x\n",__func__, num_frag);
     q = lp->dq[map];
 
     cur_p = &q->tx_bd_v[q->tx_bd_tail];
@@ -577,12 +575,14 @@ int axienet_queue_xmit(struct sk_buff *skb,
         cur_p->phys = skb_frag_dma_map(ndev->dev.parent, frag, 0, len,
                            DMA_TO_DEVICE);
         cur_p->cntrl = len;
+#if defined(PRINT_DEC)
         xt_printk("tx dma dec %d phys 0x%llx\n", ii, cur_p->phys);
         xt_printk("tx dma dec %d len 0x%x\n", ii, cur_p->cntrl);
+#endif
         cur_p->tx_desc_mapping = DESC_DMA_MAP_PAGE;
     }
 
-    xt_printk("%s end\n",__func__);
+    xt_printfunc("%s end\n",__func__);
 
 out:
     cur_p->cntrl |= XAXIDMA_BD_CTRL_TXEOF_MASK;
@@ -602,7 +602,7 @@ out:
 
     spin_unlock_irqrestore(&q->tx_lock, flags);
 
-    xt_printk("%s out end\n",__func__);
+    xt_printfunc("%s out end\n",__func__);
 
     return NETDEV_TX_OK;
 }
@@ -630,7 +630,7 @@ void axienet_start_xmit_done(struct net_device *ndev,
     unsigned int status = 0;
     cur_p = &q->tx_bd_v[q->tx_bd_ci];
     status = cur_p->status;
-    xt_printk("%s start\n",__func__);
+    xt_printfunc("%s start\n",__func__);
     while (status & XAXIDMA_BD_STS_COMPLETE_MASK) {
         if (cur_p->tx_desc_mapping == DESC_DMA_MAP_PAGE)
             dma_unmap_page(ndev->dev.parent, cur_p->phys,
@@ -677,7 +677,7 @@ void axienet_start_xmit_done(struct net_device *ndev,
      */
     netif_tx_wake_all_queues(ndev);
 
-    xt_printk("%s end\n",__func__);
+    xt_printfunc("%s end\n",__func__);
 }
 static int xticenet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
@@ -701,11 +701,11 @@ static int xticenet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 static int netdev_set_mac_address(struct net_device *ndev, void *p)
 {
     struct sockaddr *addr = p;
-    xt_printk("%s start!\n", __func__);
+    xt_printfunc("%s start!\n", __func__);
 
     axienet_set_mac_address(ndev, addr->sa_data);
 
-    xt_printk("%s end!\n", __func__);
+    xt_printfunc("%s end!\n", __func__);
     return 0;
 }
 /**
@@ -722,10 +722,8 @@ static int netdev_set_mac_address(struct net_device *ndev, void *p)
 void axienet_set_multicast_list(struct net_device *ndev)
 {
     struct axienet_local *lp = netdev_priv(ndev);
-    // xt_printk("%s start\n",__func__);
     if ((lp->axienet_config->mactype != XAXIENET_1G) || lp->eth_hasnobuf)
         return;
-    // xt_printk("%s end\n",__func__);
 
 }
 
@@ -733,7 +731,7 @@ static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
 {
     struct axienet_local *lp = netdev_priv(ndev);
 
-    xt_printk("%s start\n",__func__);
+    xt_printfunc("%s start\n",__func__);
     if (netif_running(ndev))
         return -EBUSY;
 
@@ -742,7 +740,7 @@ static int xticenet_change_mtu(struct net_device *ndev, int new_mtu)
         return -EINVAL;
 
     ndev->mtu = new_mtu;
-    xt_printk("%s end\n",__func__);
+    xt_printfunc("%s end\n",__func__);
     return 0;
 }
 
@@ -758,7 +756,7 @@ static void xticenet_poll_controller(struct net_device *ndev)
 {
     struct axienet_local *lp = netdev_priv(ndev);
     int i;
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     for_each_tx_dma_queue(lp, i)
         disable_irq(lp->dq[i]->tx_irq);
     for_each_rx_dma_queue(lp, i)
@@ -775,14 +773,14 @@ static void xticenet_poll_controller(struct net_device *ndev)
         enable_irq(lp->dq[i]->tx_irq);
     for_each_rx_dma_queue(lp, i)
         enable_irq(lp->dq[i]->rx_irq);
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
 }
 #endif
 
 /* Ioctl MII Interface */
 static int xticenet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-    xt_printk("%s start\n",__func__);
+    xt_printfunc("%s start\n",__func__);
 
     if (!netif_running(dev))
         return -EINVAL;
@@ -922,7 +920,7 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
 {
     int err;
     int val;
-    xt_printk("%s start!\n",__func__);
+    xt_printfunc("%s start!\n",__func__);
 
     pci_select_bars(pdev, IORESOURCE_MEM);
     /* 打开pci设备，成功返回0 */
@@ -994,7 +992,7 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
         goto xt_err_read_reg;
     }
 
-    xt_printk("%s end!\n",__func__);
+    xt_printfunc("%s end!\n",__func__);
     return 0;
 
 xt_err_read_reg:
@@ -1052,7 +1050,7 @@ static int axienet_recv(struct net_device *ndev, int budget,
     struct axidma_bd *cur_p;
     unsigned int numbdfree = 0;
 
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     /* Get relevat BD status value */
     rmb();
 
@@ -1130,7 +1128,7 @@ static int axienet_recv(struct net_device *ndev, int budget,
     if (tail_p) {
         axienet_dma_bdout(q, XAXIDMA_RX_TDESC_OFFSET, tail_p);
     }
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
     return numbdfree;
 }
 
@@ -1154,7 +1152,7 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
     int map = napi - lp->napi;
     struct axienet_dma_q *q = lp->dq[map];
 
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     spin_lock(&q->rx_lock);
 
     status = axienet_dma_in32(q, XAXIDMA_RX_SR_OFFSET);
@@ -1178,7 +1176,7 @@ int xtenet_rx_poll(struct napi_struct *napi, int quota)
         cr |= (XAXIDMA_IRQ_IOC_MASK | XAXIDMA_IRQ_DELAY_MASK);
         axienet_dma_out32(q, XAXIDMA_RX_CR_OFFSET, cr);
     }
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
     return work_done;
 }
 
@@ -1472,7 +1470,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     int rxcsum;
     u16 num_queues = XTIC_MAX_QUEUES;
 
-    xt_printk("%s start!\n", __func__);
+    xt_printfunc("%s start!\n", __func__);
 #if defined(LINUX_5_4)
     xt_printk("define LINUX_5_4\n");
 #elif defined(LINUX_5_15)
@@ -1664,7 +1662,7 @@ static void xtenet_shutdown(struct pci_dev *pdev)
 {
     struct net_device *ndev = pci_get_drvdata(pdev);
 
-    xt_printk("%s start\n",__func__);
+    xt_printfunc("%s start\n",__func__);
     rtnl_lock();
     netif_device_detach(ndev);
 
@@ -1672,7 +1670,7 @@ static void xtenet_shutdown(struct pci_dev *pdev)
         dev_close(ndev);
 
     rtnl_unlock();
-    xt_printk("%s end\n",__func__);
+    xt_printfunc("%s end\n",__func__);
 }
 
 static struct pci_driver xtenet_driver = {
@@ -1691,7 +1689,6 @@ static int __init xtenet_init_module(void)
     // xtic_cdev_init();
 
     ret = pci_register_driver(&xtenet_driver);
-    xt_printk("ret = 0x%x\n",ret);
     return ret;
 }
 

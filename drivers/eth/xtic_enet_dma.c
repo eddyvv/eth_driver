@@ -92,7 +92,7 @@ static int __dma_txq_init(struct net_device *ndev, struct axienet_dma_q *q)
     int i;
     u32 cr;
     struct axienet_local *lp = netdev_priv(ndev);
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     q->tx_bd_ci = 0;
     q->tx_bd_tail = 0;
 
@@ -146,7 +146,7 @@ static int __dma_txq_init(struct net_device *ndev, struct axienet_dma_q *q)
     /* 启动传输 */
     axienet_dma_out32(q, XAXIDMA_TX_CR_OFFSET,
               cr | XAXIDMA_CR_RUNSTOP_MASK);
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
     return 0;
 out:
     return -ENOMEM;
@@ -170,7 +170,7 @@ static int __dma_rxq_init(struct net_device *ndev,
     struct axienet_local *lp = netdev_priv(ndev);
     /* Reset the indexes which are used for accessing the BDs */
     q->rx_bd_ci = 0;
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     /* Allocate the Rx buffer descriptors. */
     q->rx_bd_v = dma_alloc_coherent(ndev->dev.parent,
                     sizeof(*q->rx_bd_v) * lp->rx_bd_num,
@@ -197,9 +197,11 @@ static int __dma_rxq_init(struct net_device *ndev,
                             skb->data,
                             lp->max_frm_size,
                             DMA_FROM_DEVICE);
-        xt_printk("rx dma dec %d phys 0x%llx\n", i, q->rx_bd_v[i].phys);
         q->rx_bd_v[i].cntrl = lp->max_frm_size;
+#if defined(PRINT_DEC)
+        xt_printk("rx dma dec %d phys 0x%llx\n", i, q->rx_bd_v[i].phys);
         xt_printk("rx dma dec %d len 0x%x\n", i, q->rx_bd_v[i].cntrl);
+#endif
     }
 
     /* Start updating the Rx channel control register */
@@ -224,7 +226,7 @@ static int __dma_rxq_init(struct net_device *ndev,
               cr | XAXIDMA_CR_RUNSTOP_MASK);
     axienet_dma_bdout(q, XAXIDMA_RX_TDESC_OFFSET, q->rx_bd_p +
               (sizeof(*q->rx_bd_v) * (lp->rx_bd_num - 1)));
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
     return 0;
 out:
     return -ENOMEM;
@@ -242,13 +244,13 @@ out:
 int __maybe_unused axienet_dma_q_init(struct net_device *ndev,
                       struct axienet_dma_q *q)
 {
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     if (__dma_txq_init(ndev, q))
         goto out;
 
     if (__dma_rxq_init(ndev, q))
         goto out;
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
     return 0;
 out:
     axienet_dma_bd_release(ndev);

@@ -312,13 +312,12 @@ static struct xib_driver xib_driver = {
 static int __init xtic_ib_init(void)
 {
     int status;
-    xt_printk("%s start\n", __func__);
+    xt_printk("%s\n", __func__);
 
     status = xt_roce_register_driver(&xib_driver);
     if (status)
 		goto err_be_reg;
 
-    xt_printk("%s end\n", __func__);
     return 0;
 
 err_be_reg:
@@ -328,9 +327,8 @@ err_be_reg:
 
 static void __exit xtic_ib_exit(void)
 {
-    xt_printk("%s start\n", __func__);
+    xt_printk("%s\n", __func__);
     xt_roce_unregister_driver(&xib_driver);
-    xt_printk("%s end\n", __func__);
 }
 
 module_init(xtic_ib_init);

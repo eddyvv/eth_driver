@@ -2,11 +2,25 @@
 #define XTIC_COMMON_H_
 
 #define XTIC_DEBUG
+// #define XTIC_DEBUG_FUNC
+
+#define no_printk(fmt, ...)				\
+({							\
+	if (0)						\
+		printk(fmt, ##__VA_ARGS__);		\
+	0;						\
+})
 
 #ifndef XTIC_DEBUG
-#define xt_printk
+#define xt_printk(fmt, ...) no_printk(fmt, ##__VA_ARGS__)
 #else
-#define xt_printk printk
+#define xt_printk(fmt, ...) printk(fmt, ##__VA_ARGS__)
+#endif /* XTIC_DEBUG */
+
+#ifndef XTIC_DEBUG_FUNC
+#define xt_printfunc(fmt, ...) no_printk(fmt, ##__VA_ARGS__)
+#else
+#define xt_printfunc(fmt, ...) printk(fmt, ##__VA_ARGS__)
 #endif /* XTIC_DEBUG */
 
 #define xtenet_core_err(__dev, format, ...)         \
@@ -26,6 +40,7 @@
 #define PCI_DEVICE_ID_XTIC 0x9038
 #define WRITE_REG
 #define PRINT_REG_WR
+// #define PRINT_DEC
 #define DEBUG
 #endif
 
