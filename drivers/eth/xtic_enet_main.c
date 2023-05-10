@@ -912,7 +912,7 @@ static int skel_get_configs(struct pci_dev *pdev)
         return -1;
     }
 
-    return -1;
+    return 0;
 }
 /**
  * PCI初始化
@@ -1648,6 +1648,8 @@ static void xtenet_remove(struct pci_dev *pdev)
 {
     struct axienet_local *lp = pci_get_drvdata(pdev);
     xt_printk("%s start\n",__func__);
+
+    xt_roce_dev_remove(lp);
 
     unregister_netdev(lp->ndev);
     iounmap(lp->regs);

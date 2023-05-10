@@ -7,6 +7,8 @@
 
 #define XT_ROCE_ABI_VERSION	1
 
+#define XTIC_RDMA_ENABLED 0x4
+
 struct xilinx_ib_dev;
 
 struct xib_dev_info {
@@ -22,7 +24,7 @@ struct xib_driver {
     unsigned char name[32];
     u32 xt_abi_version;
     struct xilinx_ib_dev *(*add) (struct xib_dev_info *dev_info);
-    void (*remove) (void);
+    void (*remove) (struct xilinx_ib_dev *);
 };
 
 

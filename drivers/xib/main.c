@@ -297,7 +297,7 @@ static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
     return NULL;
 }
 
-static void xib_remove(void)
+static void xib_remove(struct xilinx_ib_dev *dev)
 {
 
 }

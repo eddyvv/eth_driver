@@ -254,11 +254,17 @@
 #define XTNET_MAX_IRQ 256
 #define NODE_ADDRESS_SIZE 6
 
+#ifdef CONFIG_BE2NET_SKYHAWK
+#define xt_skyhawk_chip(adapter)	(adapter->pdev->device == PCI_DEVICE_ID_XTIC)
+#else
+#define xt_skyhawk_chip(adapter)	(0)
+#endif /* CONFIG_BE2NET_SKYHAWK */
+
 /*
  * ROCE
  */
-#define xt_roce_supported(adapter)	(skyhawk_chip(adapter) && \
-					(adapter->function_mode & RDMA_ENABLED))
+#define xt_roce_supported(adapter)	(xt_skyhawk_chip(adapter) && \
+					(adapter->function_mode & XTIC_RDMA_ENABLED))
 
 
 
@@ -745,7 +751,7 @@ static inline u32 axienet_ior(struct axienet_local *lp, off_t offset)
  * internal function to initialize-cleanup roce device.
  */
 void xt_roce_dev_add(struct axienet_local *adapter);
-void xt_roce_dev_remove(void);
+void xt_roce_dev_remove(struct axienet_local *adapter);
 
 
 

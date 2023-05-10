@@ -9,6 +9,7 @@ static void _xt_roce_dev_add(struct axienet_local *adapter)
 {
     struct xib_dev_info dev_info;
     struct pci_dev *pdev = adapter->pdev;
+
     if(!xib_drv)
         return;
 
@@ -32,10 +33,27 @@ void xt_roce_dev_add(struct axienet_local *adapter)
     mutex_lock(&xt_adapter_list_lock);
     list_add_tail(&adapter->entry, &xt_roce_list);
 
+    _xt_roce_dev_add(adapter);
     mutex_unlock(&xt_adapter_list_lock);
     xt_printk("%s end\n", __func__);
 }
 
+static void _xt_roce_dev_remove(struct axienet_local *adapter)
+{
+    if(xib_drv && xib_drv->remove && adapter->xib_dev)
+        xib_drv->remove(adapter->xib_dev);
+    adapter->xib_dev = NULL;
+}
+
+void xt_roce_dev_remove(struct axienet_local *adapter)
+{
+    if(xt_roce_supported(adapter)) {
+        mutex_lock(&xt_adapter_list_lock);
+        _xt_roce_dev_remove(adapter);
+        list_del(&adapter->entry);
+        mutex_unlock(&xt_adapter_list_lock);
+    }
+}
 
 int xt_roce_register_driver(struct xib_driver *drv)
 {
