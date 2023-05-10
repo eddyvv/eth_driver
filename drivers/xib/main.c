@@ -1,20 +1,3 @@
-/*
- * Xilinx FPGA Xilinx ERNIC Infiniband Driver
- *
- * Copyright (c) 2019 Xilinx Pvt., Ltd
- *
- * Author: Syed S <syeds@xilinx.com>
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
-#include <linux/of_platform.h>
 #include <linux/of_net.h>
 #include <linux/module.h>
 #include <linux/mm.h>
@@ -326,7 +309,7 @@ static const struct ib_device_ops xib_dev_ops = {
     .add_gid	= xib_add_gid,
 	.del_gid	= xib_del_gid,
     .alloc_pd	= xib_alloc_pd,
-	.alloc_mr	= xib_alloc_mr, 
+	.alloc_mr	= xib_alloc_mr,
 };
 
 
@@ -335,6 +318,20 @@ static const struct ib_device_ops xib_dev_ops = {
 
 static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
 {
+    struct pci_dev *pdev = dev_info->pdev;
+
+
+    xib_bram_init();
+
+    ibdev = (struct xilinx_ib_dev *)ib_alloc_device(xilinx_ib_dev, ib_dev);
+	if(!ibdev) {
+		dev_err(&pdev->dev, "cant alloc ibdev\n");
+		return -ENOMEM;
+	}
+
+    ibdev->mtu = QP_PMTU_4096;
+    ibdev->pdev = pdev;
+
 
     return NULL;
 }

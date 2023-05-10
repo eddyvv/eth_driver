@@ -29,12 +29,14 @@ static void _xt_roce_dev_add(struct axienet_local *adapter)
 void xt_roce_dev_add(struct axienet_local *adapter)
 {
     xt_printfunc("%s start\n", __func__);
-    INIT_LIST_HEAD(&adapter->entry);
-    mutex_lock(&xt_adapter_list_lock);
-    list_add_tail(&adapter->entry, &xt_roce_list);
 
-    _xt_roce_dev_add(adapter);
-    mutex_unlock(&xt_adapter_list_lock);
+    if (xt_roce_supported(adapter)) {
+        INIT_LIST_HEAD(&adapter->entry);
+        mutex_lock(&xt_adapter_list_lock);
+        list_add_tail(&adapter->entry, &xt_roce_list);
+        _xt_roce_dev_add(adapter);
+        mutex_unlock(&xt_adapter_list_lock);
+    }
     xt_printfunc("%s end\n", __func__);
 }
 
@@ -86,8 +88,8 @@ void xt_roce_unregister_driver(struct xib_driver *drv)
     xt_printfunc("%s start\n", __func__);
 	mutex_lock(&xt_adapter_list_lock);
 	list_for_each_entry(lp, &xt_roce_list, entry) {
-		// if (lp->ocrdma_dev)
-		// 	_xt_roce_dev_remove(lp);
+		if (lp->xib_dev)
+			_xt_roce_dev_remove(lp);
 	}
 	xib_drv = NULL;
 	mutex_unlock(&xt_adapter_list_lock);

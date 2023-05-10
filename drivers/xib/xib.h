@@ -24,7 +24,7 @@ struct xilinx_ib_dev_attr {
 
 struct xilinx_ib_dev {
 	struct ib_device		ib_dev;
-	struct platform_device		*pdev;
+	struct pci_dev		*pdev;
 	struct net_device		*netdev;
 	u8				active_speed;
 	u8				active_width;
@@ -83,5 +83,8 @@ static inline struct xib_pd *get_xib_pd(struct ib_pd *ibpd)
 
 int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num);
 void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num);
+
+
+int xib_bram_init(void);
 
 #endif /* _XIB_H_ */
