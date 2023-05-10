@@ -25,3 +25,17 @@ int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num)
 
 	return 0;
 }
+
+void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num)
+{
+	bool b_acquired;
+
+	b_acquired = test_and_clear_bit(id_num, bmap->bitmap);
+#if 0
+	if (!b_acquired) {
+		dev_err(NULL, "%s bitmap: id %d already released\n",
+				bmap->name, id_num);
+		return;
+	}
+#endif
+}

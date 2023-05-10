@@ -41,6 +41,11 @@ struct xilinx_ib_dev {
 	struct axidma_q                 *dmaq;
 };
 
+struct xib_pd {
+	struct ib_pd		ib_pd;
+	u32			pdn;
+};
+
 struct xib_ucontext {
 	struct ib_ucontext	ib_uc;
 	int			pfn;
@@ -61,5 +66,8 @@ static inline struct xib_pd *get_xib_pd(struct ib_pd *ibpd)
 {
 	return container_of(ibpd, struct xib_pd, ib_pd);
 }
+
+int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num);
+void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num);
 
 #endif /* _XIB_H_ */
