@@ -28,14 +28,14 @@ static void _xt_roce_dev_add(struct axienet_local *adapter)
 
 void xt_roce_dev_add(struct axienet_local *adapter)
 {
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     INIT_LIST_HEAD(&adapter->entry);
     mutex_lock(&xt_adapter_list_lock);
     list_add_tail(&adapter->entry, &xt_roce_list);
 
     _xt_roce_dev_add(adapter);
     mutex_unlock(&xt_adapter_list_lock);
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
 }
 
 static void _xt_roce_dev_remove(struct axienet_local *adapter)
@@ -59,7 +59,7 @@ int xt_roce_register_driver(struct xib_driver *drv)
 {
     struct axienet_local *lp;
 
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
     mutex_lock(&xt_adapter_list_lock);
     if (xib_drv) {
 		mutex_unlock(&xt_adapter_list_lock);
@@ -72,7 +72,7 @@ int xt_roce_register_driver(struct xib_driver *drv)
 	}
     mutex_unlock(&xt_adapter_list_lock);
 
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
     return 0;
 }
 EXPORT_SYMBOL(xt_roce_register_driver);
@@ -83,7 +83,7 @@ void xt_roce_unregister_driver(struct xib_driver *drv)
 {
 	struct axienet_local *lp;
 
-    xt_printk("%s start\n", __func__);
+    xt_printfunc("%s start\n", __func__);
 	mutex_lock(&xt_adapter_list_lock);
 	list_for_each_entry(lp, &xt_roce_list, entry) {
 		// if (lp->ocrdma_dev)
@@ -92,7 +92,7 @@ void xt_roce_unregister_driver(struct xib_driver *drv)
 	xib_drv = NULL;
 	mutex_unlock(&xt_adapter_list_lock);
 
-    xt_printk("%s end\n", __func__);
+    xt_printfunc("%s end\n", __func__);
 }
 EXPORT_SYMBOL(xt_roce_unregister_driver);
 
