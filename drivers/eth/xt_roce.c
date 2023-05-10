@@ -5,6 +5,24 @@ static struct xib_driver *xib_drv;
 static LIST_HEAD(xt_roce_list);
 static DEFINE_MUTEX(xt_adapter_list_lock);
 
+static void _xt_roce_dev_add(struct axienet_local *adapter)
+{
+    struct xib_dev_info dev_info;
+    struct pci_dev *pdev = adapter->pdev;
+    if(!xib_drv)
+        return;
+
+    if(xib_drv->xt_abi_version != XT_ROCE_ABI_VERSION) {
+        dev_warn(&pdev->dev,"Cannot initialize RoCE due to xib ABI mismatch\n");
+        return;
+    }
+
+    dev_info.pdev = adapter->pdev;
+    dev_info.xib_regAddr = adapter->xib_regs;
+    dev_info.netdev = adapter->ndev;
+    memcpy(dev_info.mac_addr, adapter->mac_addr, ETH_ALEN);
+    
+}
 
 void xt_roce_dev_add(struct axienet_local *adapter)
 {
@@ -31,7 +49,7 @@ int xt_roce_register_driver(struct xib_driver *drv)
 	xib_drv = drv;
 
     list_for_each_entry(lp, &xt_roce_list, entry) {
-		// _xt_roce_dev_add(lp);
+		_xt_roce_dev_add(lp);
 	}
     mutex_unlock(&xt_adapter_list_lock);
 

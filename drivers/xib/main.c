@@ -296,10 +296,16 @@ static void xib_add(void)
 
 }
 
+static void xib_remove(void)
+{
+
+}
 
 static struct xib_driver xib_driver = {
     .name = "xib driver",
     .add = xib_add,
+    .remove = xib_remove,
+    .xt_abi_version = XT_XIB_ROCE_ABI_VERSION,
 };
 
 static int __init xtic_ib_init(void)

@@ -3,6 +3,7 @@
 
 #include <linux/types.h>
 
+#define XT_XIB_ROCE_ABI_VERSION 1
 struct xib_ib_create_cq {
 	__aligned_u64 buf_addr;
 	__aligned_u64 db_addr;

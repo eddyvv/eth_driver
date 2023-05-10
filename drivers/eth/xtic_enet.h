@@ -545,12 +545,14 @@ struct axienet_local {
     phys_addr_t     axidma_addr;
     phys_addr_t     xdma_addr;
     phys_addr_t     xxv_addr;
+    phys_addr_t     xib_addr;
 
     /* 映射后的bar地址 */
     u8 __iomem      *regs;
     u8 __iomem      *axidma_regs;
     u8 __iomem      *xdma_regs;
     u8 __iomem      *xxv_regs;
+    u8 __iomem      *xib_regs;
     /* 长度 */
     int         bar_size;
     /* xtenet设备状态 */
