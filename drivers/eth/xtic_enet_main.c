@@ -880,7 +880,7 @@ static void release_bar(struct pci_dev *pdev)
 /**
  * 读取PCI核配置空间相应信息，配置PCI设备寄存器并读取
  */
-static void skel_get_configs(struct pci_dev *pdev)
+static int skel_get_configs(struct pci_dev *pdev)
 {
     uint8_t val1;
     uint16_t val2;
@@ -908,6 +908,11 @@ static void skel_get_configs(struct pci_dev *pdev)
     reg_0 = axienet_xxv_ior(dev, 0x0);
     xt_printk("0x00100000 Value = 0x%x\n",reg_0);
 
+    if(reg_0 == 0xFFFFFFFF) {
+        return -1;
+    }
+
+    return -1;
 }
 /**
  * PCI初始化
@@ -926,6 +931,8 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
         xtenet_core_err(dev,"Cannot enable PCI device, aborting\n");
         return err;
     }
+
+    dev->pci_status = XTNET_PCI_STATUS_ENABLED;
 
     /* 获取bar0地址 */
     dev->bar_addr = pci_resource_start(pdev, 0);
@@ -956,6 +963,7 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     err = set_dma_caps(pdev);
     if (err) {
         xtenet_core_err(dev, "Failed setting DMA capabilities mask, aborting\n");
+        goto err_dma;
     }
     /* 映射bar0至虚拟地址空间 */
     dev->regs = pci_ioremap_bar(pdev, BAR_0);
@@ -969,7 +977,7 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     xt_printk("dev->xxv_regs \t= 0x%x\n",(unsigned int)(long)dev->xxv_regs);
     if (!dev->regs){
         xtenet_core_err(dev, "Failed pci_ioremap_bar\n");
-        goto xt_err_clr_master;
+        goto err_dma;
     }
 
     /* pci设备与xtenet网络设备绑定 */
@@ -977,20 +985,27 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     err = pci_save_state(pdev);
     if (err){
         xtenet_core_err(dev, "error pci_save_state\n");
-        return err;
+        goto xt_err_ioremap;
     }
-    skel_get_configs(pdev);
 
+    err = skel_get_configs(pdev);
+    if(err) {
+        xtenet_core_err(dev, "error read reg\n");
+        goto xt_err_read_reg;
+    }
+
+    xt_printk("%s end!\n",__func__);
     return 0;
 
-// xt_err_ioremap:
+xt_err_read_reg:
+xt_err_ioremap:
+err_dma:
     iounmap(dev->regs);
-/* 错误处理 */
-xt_err_clr_master:
     pci_clear_master(dev->pdev);
     release_bar(dev->pdev);
 xt_err_disable:
     xtenet_pci_disable_device(dev);
+    xt_printk("%s error end!\n",__func__);
     return err;
 }
 

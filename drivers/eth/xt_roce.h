@@ -9,8 +9,8 @@
 
 
 struct xib_dev_info {
-    u64 *xib_regAddr;
-    u32 *xib_regLen;
+    u8 __iomem *xib_regAddr;
+    u32 xib_regLen;
     u8 mac_addr[ETH_ALEN];
     struct pci_dev *pdev;
 	struct net_device *netdev;
