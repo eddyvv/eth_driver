@@ -16,7 +16,6 @@ $ make install
 $ make install_eth
 #安装xib
 $ make install_xib
-
 ```
 ## 卸载
 ```bash
