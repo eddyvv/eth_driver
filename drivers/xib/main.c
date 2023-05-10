@@ -64,10 +64,10 @@ int xib_alloc_ucontext(struct ib_ucontext *uctx, struct ib_udata *udata)
 	dev_dbg(&xib->ib_dev.dev, "%s: db_pa: %llx db_size: %x\n", __func__, resp.db_pa,
 			resp.db_size);
 
-	min_len = min_t(size_t, sizeof(struct xib_ib_alloc_ucontext_resp), 
+	min_len = min_t(size_t, sizeof(struct xib_ib_alloc_ucontext_resp),
 			udata->outlen);
 	ret = ib_copy_to_udata(udata, &resp, min_len);
-	if (ret) 
+	if (ret)
 		return ret;
 
 	return 0;
@@ -291,9 +291,10 @@ static const struct ib_device_ops xib_dev_ops = {
 
 
 
-static void xib_add(void)
+static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
 {
 
+    return NULL;
 }
 
 static void xib_remove(void)

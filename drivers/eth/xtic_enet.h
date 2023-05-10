@@ -569,6 +569,7 @@ struct axienet_local {
     const struct axienet_config *axienet_config;
 
     /* ROCE */
+    struct xilinx_ib_dev *xib_dev;
     struct list_head entry;
     u32 function_mode;
 

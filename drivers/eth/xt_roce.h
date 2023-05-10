@@ -7,6 +7,7 @@
 
 #define XT_ROCE_ABI_VERSION	1
 
+struct xilinx_ib_dev;
 
 struct xib_dev_info {
     u8 __iomem *xib_regAddr;
@@ -20,7 +21,7 @@ struct xib_dev_info {
 struct xib_driver {
     unsigned char name[32];
     u32 xt_abi_version;
-    void (*add) (void);
+    struct xilinx_ib_dev *(*add) (struct xib_dev_info *dev_info);
     void (*remove) (void);
 };
 
