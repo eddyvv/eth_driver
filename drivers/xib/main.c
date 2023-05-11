@@ -424,7 +424,96 @@ static const struct ib_device_ops xib_dev_ops = {
 	.get_link_layer	= xib_get_link_layer,
 };
 
+int set_ip_address(struct net_device *dev, u32 is_ipv4)
+{
+	char ip_addr[16];
+	int ret = 0;
 
+	if (!dev) {
+		pr_err("Dev is null\n");
+		return 0;
+	}
+	if (is_ipv4) {
+		u32 ipv4_addr = 0;
+		struct in_device *inet_dev = (struct in_device *)dev->ip_ptr;
+
+		if (!inet_dev) {
+			pr_err("inet dev is null\n");
+			return -EFAULT;
+		}
+		if (inet_dev->ifa_list) {
+			ipv4_addr = inet_dev->ifa_list->ifa_address;
+			if (!ipv4_addr) {
+				pr_err("ifa_address not available\n");
+				return -EINVAL;
+			}
+
+			if (!ibdev)
+				return -EFAULT;
+
+			if (!ibdev->xl)
+				return -EFAULT;
+
+			config_raw_ip(ibdev->xl, XRNIC_IPV4_ADDR, (u32 *)&ipv4_addr, 0);
+			snprintf(ip_addr, 16, "%pI4", &ipv4_addr);
+			pr_info("IP address is :%s\n", ip_addr);
+		} else {
+			pr_info("IP address not available at present\n");
+			return -EFAULT;
+		}
+	} else {
+		struct inet6_dev *idev;
+		struct inet6_ifaddr *ifp, *tmp;
+		u32 i, ip_avail = 0;
+
+		idev = __in6_dev_get(dev);
+		if (!idev) {
+			pr_err("ipv6 inet device not found\n");
+			return -EFAULT;
+		}
+
+		list_for_each_entry_safe(ifp, tmp, &idev->addr_list, if_list) {
+			pr_info("IP=%pI6, MAC=%pM\n", &ifp->addr, dev->dev_addr);
+			for (i = 0; i < 16; i++) {
+				pr_info("IP=%x\n", ifp->addr.s6_addr[i]);
+				ip_addr[15 - i] = ifp->addr.s6_addr[i];
+			}
+			ip_avail = 1;
+			config_raw_ip(ibdev->xl, XRNIC_IPV6_ADD_1, (u32 *)ifp->addr.s6_addr, 1);
+		}
+
+		if (!ip_avail) {
+			pr_info("IPv6 address not available at present\n");
+			return 0;
+		}
+	}
+	ret = update_mtu(dev);
+	return ret;
+}
+
+
+void xib_set_dev_caps(struct ib_device *ibdev)
+{
+	ibdev->phys_port_cnt		= 1;
+	ibdev->num_comp_vectors		= 1;
+	ibdev->local_dma_lkey		= 0;
+	ibdev->uverbs_cmd_mask		=
+		(1ULL << IB_USER_VERBS_CMD_GET_CONTEXT) |
+		(1ULL << IB_USER_VERBS_CMD_QUERY_DEVICE) |
+		(1ULL << IB_USER_VERBS_CMD_QUERY_PORT) |
+		(1ULL << IB_USER_VERBS_CMD_ALLOC_PD) |
+		(1ULL << IB_USER_VERBS_CMD_DEALLOC_PD) |
+		(1ULL << IB_USER_VERBS_CMD_REG_MR) |
+		// (1ULL << IB_USER_VERBS_CMD_REG_MR_EX) |  /* 需在/include/uapi/rdma/ib_user_verbs.h添加枚举变量 */
+		(1ULL << IB_USER_VERBS_CMD_DEREG_MR) |
+		(1ULL << IB_USER_VERBS_CMD_CREATE_COMP_CHANNEL) |
+		(1ULL << IB_USER_VERBS_CMD_CREATE_CQ) |
+		(1ULL << IB_USER_VERBS_CMD_DESTROY_CQ) |
+		(1ULL << IB_USER_VERBS_CMD_CREATE_QP) |
+		(1ULL << IB_USER_VERBS_CMD_MODIFY_QP) |
+		(1ULL << IB_USER_VERBS_CMD_QUERY_QP) |
+		(1ULL << IB_USER_VERBS_CMD_DESTROY_QP);
+}
 
 static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 {
@@ -535,7 +624,52 @@ static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 	*/
 	ibdev->ib_dev.dev.parent = &pdev->dev;
 
+    strlcpy(ibdev->ib_dev.name, "xib_%d", IB_DEVICE_NAME_MAX);
+	ibdev->ib_dev.node_type	= RDMA_NODE_IB_CA;
+
+    xib_set_dev_caps(&ibdev->ib_dev);
+    ib_set_device_ops(&ibdev->ib_dev, &xib_dev_ops);
+
+    err = ib_register_device(&ibdev->ib_dev, ibdev->ib_dev.name, &pdev->dev);
+	if (err) {
+		dev_err(&pdev->dev, "failed to regiser xib device\n");
+		goto err_1;
+	}
+
+    /* set dma mask */
+	/* TODO set relevant mask for 64bit and 32 bit */
+	err = dma_set_mask_and_coherent(&ibdev->pdev->dev, DMA_BIT_MASK(32));
+	if (err != 0)
+		dev_err(&pdev->dev, "unable to set dma mask\n");
+
+	/* the phy attached to 40G is not giving out active speed or width
+	 * since we are using 40G in the design default to 40G */ /*TODO */
+	#if 0
+	ib_get_eth_speed(&ibdev->ib_dev, 1, &ibdev->active_speed,
+			&ibdev->active_width);
+	#endif
+	ibdev->active_speed = IB_SPEED_FDR10;
+	ibdev->active_width = IB_WIDTH_4X;
+
+    /* set the mac address */
+	xrnic_set_mac(xl, netdev->dev_addr);
+
+    err = set_ip_address(netdev, 1);
+	err = set_ip_address(netdev, 0);
+
+    /* pre-reserve QP1
+	 * there is no QP0 in ernic HW
+	 */
+	spin_lock_bh(&ibdev->lock);
+    xib_bmap_alloc_id(&ibdev->qp_map, &qpn);
+    spin_unlock_bh(&ibdev->lock);
+
+    dev_dbg(&pdev->dev, "gsi qpn: %d\n", qpn);
+
     return NULL;
+
+err_1:
+	return err;
 }
 
 static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)

@@ -318,5 +318,10 @@ int xrnic_reg_mr(struct xilinx_ib_dev *xib, u64 va, u64 len,
 
 struct xrnic_local *xrnic_hw_init(struct pci_dev *pdev, struct xilinx_ib_dev *xib);
 
+void xrnic_set_mac(struct xrnic_local *xl, u8 *mac);
+void config_raw_ip(struct xrnic_local *xl, u32 base, u32 *ip, bool is_ipv6);
+
+
+
 
 #endif /* _XRNIC_H_ */

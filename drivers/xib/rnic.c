@@ -11,6 +11,34 @@
 #include "xib.h"
 #include "ib_verbs.h"
 
+void xrnic_set_mac(struct xrnic_local *xl, u8 *mac)
+{
+	u32 val;
+
+	val = mac[5] | (mac[4] << 8) |
+		(mac[3] << 16) | (mac[2] << 24);
+
+	xrnic_iow(xl, XRNIC_MAC_ADDR_LO, val);
+
+  	wmb();
+  	val =  mac[1] | (mac[0] << 8);
+	xrnic_iow(xl, XRNIC_MAC_ADDR_HI, val);
+}
+
+void config_raw_ip(struct xrnic_local *xl, u32 base, u32 *ip, bool is_ipv6)
+{
+	u32 val = 0, i;
+
+	if (!is_ipv6) {
+		val = cpu_to_be32(*ip);
+		xrnic_iow(xl, base, val);
+	} else {
+		for (i = 0; i < 4; i++) {
+			val = cpu_to_be32(ip[i]);
+			xrnic_iow(xl, base + (3 - i) * 4, val);
+		}
+	}
+}
 
 int xrnic_reg_mr(struct xilinx_ib_dev *xib, u64 va, u64 len,
 		u64 *pbl_tbl, int umem_pgs, int pdn, u32 mr_idx, u8 rkey)
