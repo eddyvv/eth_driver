@@ -501,6 +501,39 @@ static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 		rtr_count | ( XRNIC_SIZE_OF_DATA_BUF << 16));
 	wmb();
 
+    /* initialize in_pkt_errq bufs */
+	xl->in_pkt_err_va = dma_alloc_coherent(&pdev->dev,
+			(XRNIC_IN_PKT_ERRQ_DEPTH * 8), &xl->in_pkt_err_ba, GFP_KERNEL);
+	if (!xl->in_pkt_err_ba) {
+		dev_err(&pdev->dev, "Failed to allocate in_pkt_err bufs\n");
+		return -ENOMEM;
+	}
+	xrnic_iow(xl, XRNIC_INCG_PKT_ERRQ_BASE_LSB, xl->in_pkt_err_ba);
+	xrnic_iow(xl, XRNIC_INCG_PKT_ERRQ_BASE_MSB,
+					UPPER_32_BITS(xl->in_pkt_err_ba));
+	wmb();
+	/* each entry is 8 bytes, max sz = 64  */
+	xrnic_iow(xl, XRNIC_INCG_PKT_ERRQ_SZ, XRNIC_IN_PKT_ERRQ_DEPTH);
+	wmb();
+
+    spin_lock_init(&ibdev->lock);
+
+	/* allocate qp list */
+	ibdev->qp_list = (struct xib_qp **) kzalloc
+			((sizeof(struct xib_qp *) * ibdev->dev_attr.max_qp), GFP_KERNEL);
+
+    /* alloc pd bmap */
+	xib_bmap_alloc(&ibdev->pd_map, ibdev->dev_attr.max_pd, "PD");
+	/* alloc qp bmap */
+	xib_bmap_alloc(&ibdev->qp_map, ibdev->dev_attr.max_qp, "QP");
+	/* alloc mr bmap */
+	xib_bmap_alloc(&ibdev->mr_map, ibdev->dev_attr.max_mr, "MR");
+
+    /*
+	*  TODO do we need to pass PL DDR for infiniband core
+	* allocations?
+	*/
+	ibdev->ib_dev.dev.parent = &pdev->dev;
 
     return NULL;
 }

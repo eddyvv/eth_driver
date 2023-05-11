@@ -211,6 +211,30 @@ enum {
 #define PFC_XON_XOFF_MIN		0
 #define PFC_XON_XOFF_MAX		512
 
+
+enum xrnic_wc_opcod {
+	XRNIC_RDMA_WRITE = 0x0,
+	XRNIC_RDMA_WRITE_WITH_IMM = 0x1,
+	XRNIC_SEND_ONLY = 0x2,
+	XRNIC_SEND_WITH_IMM = 0x3,
+	XRNIC_RDMA_READ = 0x4,
+	XRNIC_SEND_WITH_INV = 0xC,
+};
+
+#define XRNIC_INVALID_OPC -1
+
+struct xlnx_ernic_config {
+	int dummy;
+};
+#define XRNIC_SQ_WQE_SIZE	64
+#define XRNIC_GSI_RECV_PKT_SIZE 512
+#define XRNIC_GSI_RQ_DEPTH	64
+#define XRNIC_IN_PKT_ERRQ_DEPTH 64
+
+#define XRNIC_RQ_BUF_SGE_SIZE	256
+#define XRNIC_DEF_RQ_DEPTH	16
+#define XRNIC_DEF_SQ_DEPTH	32
+
 struct xrnic_local {
 	struct xilinx_ib_dev		*xib;
 	struct pci_dev		*pdev;
