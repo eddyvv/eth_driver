@@ -929,7 +929,7 @@ void xib_set_dev_caps(struct ib_device *ibdev)
 }
 
 static int xib_init_instance(struct xib_dev_info *dev_info,
-                                                struct xilinx_ib_dev *xib)
+                            struct xilinx_ib_dev *xib)
 {
     int err;
     struct pci_dev *pdev = dev_info->pdev;
@@ -948,7 +948,7 @@ static int xib_init_instance(struct xib_dev_info *dev_info,
     ibdev->mtu = QP_PMTU_4096;
     ibdev->pdev = pdev;
 
-    xl = xrnic_hw_init(pdev, ibdev);
+    xl = xrnic_hw_init(dev_info, ibdev);
 	if (!xl) {
 		dev_err(&pdev->dev, "xrnic init failed\n");
 		return -ENODEV;

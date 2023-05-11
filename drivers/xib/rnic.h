@@ -316,7 +316,7 @@ static inline u32 xrnic_ior(struct xrnic_local *xl, off_t offset)
 int xrnic_reg_mr(struct xilinx_ib_dev *xib, u64 va, u64 len,
 		u64 *pbl_tbl, int umem_pgs, int pdn, u32 mr_idx, u8 rkey);
 
-struct xrnic_local *xrnic_hw_init(struct pci_dev *pdev, struct xilinx_ib_dev *xib);
+struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_ib_dev *xib);
 void xrnic_hw_deinit(struct xilinx_ib_dev *xib);
 void xrnic_set_mac(struct xrnic_local *xl, u8 *mac);
 int xrnic_start(struct xrnic_local *xl);

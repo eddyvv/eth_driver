@@ -288,9 +288,10 @@ static void xrnic_set_bufs(struct pci_dev *pdev, struct xrnic_local *xl)
 }
 
 
-struct xrnic_local *xrnic_hw_init(struct pci_dev *pdev, struct xilinx_ib_dev *xib)
+struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_ib_dev *xib)
 {
     struct xrnic_local *xl;
+    struct pci_dev *pdev = dev_info->pdev;
 	struct resource *res;
     // struct axienet_local *lp = pci_get_drvdata(pdev);
 	u32 *db_buf;
@@ -305,7 +306,7 @@ struct xrnic_local *xrnic_hw_init(struct pci_dev *pdev, struct xilinx_ib_dev *xi
     xl->pdev = pdev;
 	xl->retry_buf_va = NULL;
 	xl->in_pkt_err_va = NULL;
-    // xl->reg_base = ;
+    xl->reg_base = dev_info->xib_regAddr;
     /* store pa of reg for db access */
 	xl->db_pa = (res->start + 0x20000);
 	xl->db_size = (res->end - (res->start + 0x20000) + 1);
