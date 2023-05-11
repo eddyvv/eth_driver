@@ -352,3 +352,19 @@ fail:
 	return NULL;
 }
 
+/*
+ *
+ */
+void xrnic_hw_deinit(struct xilinx_ib_dev *xib)
+{
+	struct xrnic_local *xl = xib->xl;
+    struct device *dev = &xib->pdev->dev;
+
+    dma_free_coherent(dev, PAGE_SIZE, xl->qp1_sq_db_v,
+			xl->qp1_sq_db_p);
+    dma_free_coherent(dev, PAGE_SIZE, xl->qp1_rq_db_v,
+			xl->qp1_rq_db_p);
+
+	free_irq(xl->irq, xib);
+	kfree(xl);
+}

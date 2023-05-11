@@ -1125,8 +1125,35 @@ static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
     return xib_init_instance(dev_info);;
 }
 
-static void xib_remove(struct xilinx_ib_dev *dev)
+static void xib_remove(struct xilinx_ib_dev *xdev)
 {
+	unsigned int rtr_count = 1024;
+	struct xrnic_local *xl;
+    struct device *dev = &xdev->pdev->dev;
+
+    dev_dbg(dev, "%s : <---------- \n", __func__);
+
+    unregister_netdevice_notifier(&cmac_netdev_notifier);
+	unregister_inetaddr_notifier(&cmac_inetaddr_notifier);
+	unregister_inet6addr_notifier(&cmac_inet6addr_notifier);
+
+    kobject_put(ibdev->pfc_kobj);
+    ib_unregister_device(&xdev->ib_dev);
+
+    /* free rtr buffers */
+	xl = xdev->xl;
+
+    if (xl->retry_buf_va)
+        dma_free_coherent(dev, (rtr_count * XRNIC_SIZE_OF_DATA_BUF),
+                    xl->retry_buf_va, xl->retry_buf_pa);
+
+    /* free incoming error pkt buffer space */
+	if (xl->in_pkt_err_va)
+		dma_free_coherent(dev, (XRNIC_IN_PKT_ERRQ_DEPTH * 8),
+				xl->in_pkt_err_va, xl->in_pkt_err_ba);
+	/* free SQ, RQ DB area */
+
+    xrnic_hw_deinit(xdev);
 
 }
 
