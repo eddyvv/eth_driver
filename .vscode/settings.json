@@ -9,6 +9,7 @@
         "stdio.h": "c",
         "xtic_common.h": "c",
         "xt_roce.h": "c",
-        "xib.h": "c"
+        "xib.h": "c",
+        "rnic.h": "c"
     }
 }

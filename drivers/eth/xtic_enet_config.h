@@ -21,7 +21,7 @@
 
 #define XTIC_MAX_QUEUES         1
 
-#define XTIC_PCIE_MAX_IRQ       2
+#define XTIC_PCIE_MAX_IRQ       3
 
 
 

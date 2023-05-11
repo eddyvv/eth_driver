@@ -14,8 +14,10 @@ struct xilinx_ib_dev;
 struct xib_dev_info {
     u8 __iomem *xib_regAddr;
     u32 xib_regLen;
+    int xib_irq;
     u8 mac_addr[ETH_ALEN];
     struct pci_dev *pdev;
+    struct axienet_local *ethdev;
 	struct net_device *netdev;
 };
 

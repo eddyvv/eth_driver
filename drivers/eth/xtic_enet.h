@@ -529,7 +529,7 @@ struct axienet_local {
 
     int eth_irq;
     int irqn[XTIC_PCIE_MAX_IRQ];
-
+    int xib_irq;
     u8 mac_addr[NODE_ADDRESS_SIZE];
     u32 coalesce_count_rx;
     u32 coalesce_count_tx;

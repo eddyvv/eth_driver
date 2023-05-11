@@ -13,12 +13,17 @@
 #include <linux/jiffies.h>
 #include "xib-abi.h"
 #include "xtic_common.h"
-#include "../eth/xt_roce.h"
+#include "../eth/xtic_enet.h"
+
 #include "xib.h"
 #include "ib_verbs.h"
 
 struct xilinx_ib_dev *ibdev;
-
+static const struct pci_device_id xt_roce_pci_tbl[] = {
+    {PCI_DEVICE(PCI_VENDOR_ID_XTIC, PCI_DEVICE_ID_XTIC)},
+    {0,}
+};
+MODULE_DEVICE_TABLE(pci, xt_roce_pci_tbl);
 unsigned int app_qp_cnt = 10;
 
 unsigned int app_qp_depth = 16;
@@ -376,14 +381,11 @@ static const struct ib_device_ops xib_dev_ops = {
 
 
 
-
-
-static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
+static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 {
     struct pci_dev *pdev = dev_info->pdev;
+    struct xrnic_local *xl;
 
-
-    xib_bram_init();
 
     ibdev = (struct xilinx_ib_dev *)ib_alloc_device(xilinx_ib_dev, ib_dev);
 	if(!ibdev) {
@@ -394,8 +396,27 @@ static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
     ibdev->mtu = QP_PMTU_4096;
     ibdev->pdev = pdev;
 
+    xl = xrnic_hw_init(pdev, ibdev);
+	if (!xl) {
+		dev_err(&pdev->dev, "xrnic init failed\n");
+		return -ENODEV;
+	}
 
     return NULL;
+}
+
+static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
+{
+    struct pci_dev *pdev = dev_info->pdev;
+    const struct pci_device_id *id;
+
+    dev_dbg(&pdev->dev, "%s : <---------- \n", __func__);
+
+    id = pci_match_id(xt_roce_pci_tbl, pdev);
+    if(!id)
+        return 0;
+
+    return xib_init_instance(dev_info);;
 }
 
 static void xib_remove(struct xilinx_ib_dev *dev)

@@ -4,8 +4,4 @@
 
 
 
-int xib_bram_init(void)
-{
 
-    return 0;
-}

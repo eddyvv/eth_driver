@@ -66,6 +66,9 @@ struct xib_ucontext {
 	unsigned int		index;
 };
 
+#define UPPER_32_BITS(a) ((a) >> 32U)
+
+
 static inline struct xilinx_ib_dev *get_xilinx_dev(struct ib_device *ibdev)
 {
 	return container_of(ibdev, struct xilinx_ib_dev, ib_dev);
@@ -90,6 +93,5 @@ int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num);
 void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num);
 
 
-int xib_bram_init(void);
 
 #endif /* _XIB_H_ */
