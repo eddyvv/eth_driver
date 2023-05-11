@@ -30,6 +30,37 @@ unsigned int app_qp_depth = 16;
 
 unsigned int max_rq_sge = 16;
 
+int update_mtu(struct net_device *dev)
+{
+	u32 mtu;
+
+	switch (dev->mtu) {
+	case 340:
+		mtu = QP_PMTU_256;
+		break;
+	case 592:
+		mtu = QP_PMTU_512;
+		break;
+	case 1500:
+		mtu = QP_PMTU_1024;
+		break;
+	case 2200:
+		mtu = QP_PMTU_2048;
+		break;
+	case 4200:
+		mtu = QP_PMTU_4096;
+		break;
+	default:
+		mtu = QP_PMTU_4096;
+		break;
+	}
+
+	/* update ib dev structure with mtu */
+	pr_debug("Updating MTU to %d\n", mtu);
+	ibdev->mtu = mtu;
+	return 0;
+}
+
 int xib_alloc_ucontext(struct ib_ucontext *uctx, struct ib_udata *udata)
 {
 	struct ib_device *ib_dev = uctx->device;
@@ -382,6 +413,7 @@ static const struct ib_device_ops xib_dev_ops = {
 
 static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 {
+    int err;
     struct pci_dev *pdev = dev_info->pdev;
     struct xrnic_local *xl;
 
@@ -400,6 +432,17 @@ static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 		dev_err(&pdev->dev, "xrnic init failed\n");
 		return -ENODEV;
 	}
+
+    ibdev->xl = xl;
+	xl->xib = ibdev;
+
+    ibdev->netdev = dev_info->netdev;
+    if(!ibdev->netdev) {
+		dev_err(&pdev->dev, "no netdev found\n");
+		return -EINVAL;
+	}
+
+    err = update_mtu(ibdev->netdev);
 
     return NULL;
 }
