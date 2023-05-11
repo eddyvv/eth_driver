@@ -18,6 +18,25 @@
 #include "ib_verbs.h"
 
 struct xilinx_ib_dev *ibdev;
+
+static int handle_netdev_notifier(struct notifier_block *notifier,
+                               unsigned long event, void *ptr);
+struct notifier_block cmac_netdev_notifier = {
+	.notifier_call = handle_netdev_notifier
+};
+
+static int cmac_inetaddr_event(struct notifier_block *notifier,
+                               unsigned long event, void *data);
+static int cmac_inet6addr_event(struct notifier_block *notifier,
+                               unsigned long event, void *data);
+struct notifier_block cmac_inetaddr_notifier = {
+	.notifier_call = cmac_inetaddr_event
+};
+
+struct notifier_block cmac_inet6addr_notifier = {
+        .notifier_call = cmac_inet6addr_event
+};
+
 static const struct pci_device_id xt_roce_pci_tbl[] = {
     {PCI_DEVICE(PCI_VENDOR_ID_XTIC, PCI_DEVICE_ID_XTIC)},
     {0,}
@@ -64,7 +83,7 @@ static ssize_t store_roce_pfc_enable(struct kobject *kobj,
 		val |= (1U << XRNIC_ROCE_PFC_EN_BIT);
 		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
 	} else {
-		pr_err("Error: Write 1 or 0 to enable/disable PFC.\n", val);
+		pr_err("Error: Write 1 or 0 to enable/disable PFC.\n");
 	}
 	return count;
 }
@@ -84,7 +103,7 @@ static ssize_t store_non_roce_pfc_enable(struct kobject *kobj,
 		val |= (1U << XRNIC_NON_ROCE_PFC_EN_BIT);
 		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
 	} else {
-		pr_err("Error: Write 1 or 0 to enable/disable PFC.\n", val);
+		pr_err("Error: Write 1 or 0 to enable/disable PFC.\n");
 	}
 	return count;
 }
@@ -173,7 +192,7 @@ static ssize_t store_roce_pfc_xon(struct kobject *kobj,
 	if (xon >= PFC_XON_XOFF_MIN && xon <= PFC_XON_XOFF_MAX) {
 		xrnic_iow(ibdev->xl, XRNIC_ROCE_PAUSE_OFFSET, xon | (val & 0xFFFF0000));
 	} else {
-		pr_err("Error: XON threshold must be 0 to 512.\n", val);
+		pr_err("Error: XON threshold must be 0 to 512.\n");
 	}
 	return count;
 }
@@ -189,7 +208,7 @@ static ssize_t store_non_roce_pfc_xon(struct kobject *kobj,
 	if (xon >= PFC_XON_XOFF_MIN && xon <= PFC_XON_XOFF_MAX) {
 		xrnic_iow(ibdev->xl, XRNIC_NON_ROCE_PAUSE_OFFSET, xon | (val & 0xFFFF0000));
 	} else {
-		pr_err("Error: XON threshold must be 0 to 512.\n", val);
+		pr_err("Error: XON threshold must be 0 to 512.\n");
 	}
 	return count;
 }
@@ -220,7 +239,7 @@ static ssize_t store_roce_pfc_xoff(struct kobject *kobj,
 	if (xoff >= PFC_XON_XOFF_MIN && xoff <= PFC_XON_XOFF_MAX) {
 		xrnic_iow(ibdev->xl, XRNIC_ROCE_PAUSE_OFFSET, (xoff << 16) | (val & 0xFFFF));
 	} else {
-		pr_err("Error: XOFF threshold must be 0 to 512.\n", val);
+		pr_err("Error: XOFF threshold must be 0 to 512.\n");
 	}
 	return count;
 }
@@ -236,7 +255,7 @@ static ssize_t store_non_roce_pfc_xoff(struct kobject *kobj,
 	if (xoff >= PFC_XON_XOFF_MIN && xoff <= PFC_XON_XOFF_MAX) {
 		xrnic_iow(ibdev->xl, XRNIC_NON_ROCE_PAUSE_OFFSET, (xoff << 16) | (val & 0xFFFF));
 	} else {
-		pr_err("Error: XOFF threshold must be 0 to 512.\n", val);
+		pr_err("Error: XOFF threshold must be 0 to 512.\n");
 	}
 	return count;
 }
@@ -373,6 +392,149 @@ int update_mtu(struct net_device *dev)
 	/* update ib dev structure with mtu */
 	pr_debug("Updating MTU to %d\n", mtu);
 	ibdev->mtu = mtu;
+	return 0;
+}
+
+int set_ip_address(struct net_device *dev, u32 is_ipv4)
+{
+	char ip_addr[16];
+	int ret = 0;
+
+	if (!dev) {
+		pr_err("Dev is null\n");
+		return 0;
+	}
+	if (is_ipv4) {
+		u32 ipv4_addr = 0;
+		struct in_device *inet_dev = (struct in_device *)dev->ip_ptr;
+
+		if (!inet_dev) {
+			pr_err("inet dev is null\n");
+			return -EFAULT;
+		}
+		if (inet_dev->ifa_list) {
+			ipv4_addr = inet_dev->ifa_list->ifa_address;
+			if (!ipv4_addr) {
+				pr_err("ifa_address not available\n");
+				return -EINVAL;
+			}
+
+			if (!ibdev)
+				return -EFAULT;
+
+			if (!ibdev->xl)
+				return -EFAULT;
+
+			config_raw_ip(ibdev->xl, XRNIC_IPV4_ADDR, (u32 *)&ipv4_addr, 0);
+			snprintf(ip_addr, 16, "%pI4", &ipv4_addr);
+			pr_info("IP address is :%s\n", ip_addr);
+		} else {
+			pr_info("IP address not available at present\n");
+			return -EFAULT;
+		}
+	} else {
+		struct inet6_dev *idev;
+		struct inet6_ifaddr *ifp, *tmp;
+		u32 i, ip_avail = 0;
+
+		idev = __in6_dev_get(dev);
+		if (!idev) {
+			pr_err("ipv6 inet device not found\n");
+			return -EFAULT;
+		}
+
+		list_for_each_entry_safe(ifp, tmp, &idev->addr_list, if_list) {
+			pr_info("IP=%pI6, MAC=%pM\n", &ifp->addr, dev->dev_addr);
+			for (i = 0; i < 16; i++) {
+				pr_info("IP=%x\n", ifp->addr.s6_addr[i]);
+				ip_addr[15 - i] = ifp->addr.s6_addr[i];
+			}
+			ip_avail = 1;
+			config_raw_ip(ibdev->xl, XRNIC_IPV6_ADD_1, (u32 *)ifp->addr.s6_addr, 1);
+		}
+
+		if (!ip_avail) {
+			pr_info("IPv6 address not available at present\n");
+			return 0;
+		}
+	}
+	ret = update_mtu(dev);
+	return ret;
+}
+
+static int handle_netdev_notifier(struct notifier_block *notifier,
+				       unsigned long event, void *ptr)
+{
+	struct net_device *dev;
+
+	dev = netdev_notifier_info_to_dev(ptr);
+	if (!dev) {
+		pr_err("Failed to get the net device");
+		return -EINVAL;
+	}
+
+	switch (event) {
+		case NETDEV_CHANGEADDR:
+			pr_info("%s mac changed\n", ibdev->netdev->name);
+			xrnic_set_mac(ibdev->xl, dev->dev_addr);
+			break;
+		case NETDEV_CHANGEMTU:
+			pr_info("MTU changed\n");
+			update_mtu(dev);
+			break;
+	}
+	return 0;
+}
+
+static int handle_inetaddr_notification(struct notifier_block *notifier,
+				       unsigned long event, void *data, u32 is_ipv4)
+{
+	struct in_ifaddr *ifa = data;
+	struct net_device *event_netdev;
+	struct net_device *dev = __dev_get_by_name(&init_net, ibdev->netdev->name);
+	int ret = 0;
+
+	if (!ifa) {
+		pr_err("ifaddr is NULL\n");
+		return -EINVAL;
+	}
+
+	if (!dev) {
+		pr_err("Failed to get the net device");
+		return -EINVAL;
+	}
+
+	if (is_ipv4) {
+		event_netdev = ifa->ifa_dev->dev;
+
+		/* Check whether notification is for ernic-ether or not*/
+		if (event_netdev != dev)
+			return 0;
+	}
+
+	switch (event) {
+	case NETDEV_DOWN:
+		pr_info("%s link down\n", ibdev->netdev->name);
+		break;
+	case NETDEV_UP:
+		pr_info("%s link up\n", ibdev->netdev->name);
+		ret = set_ip_address(dev, is_ipv4);
+		break;
+	}
+	return 0;
+}
+
+static int cmac_inetaddr_event(struct notifier_block *notifier,
+			       unsigned long event, void *data)
+{
+	handle_inetaddr_notification(notifier, event, data, 1);
+	return 0;
+}
+
+static int cmac_inet6addr_event(struct notifier_block *notifier,
+			       unsigned long event, void *data)
+{
+	handle_inetaddr_notification(notifier, event, data, 0);
 	return 0;
 }
 
@@ -740,72 +902,7 @@ static const struct ib_device_ops xib_dev_ops = {
 	.get_link_layer	= xib_get_link_layer,
 };
 
-int set_ip_address(struct net_device *dev, u32 is_ipv4)
-{
-	char ip_addr[16];
-	int ret = 0;
 
-	if (!dev) {
-		pr_err("Dev is null\n");
-		return 0;
-	}
-	if (is_ipv4) {
-		u32 ipv4_addr = 0;
-		struct in_device *inet_dev = (struct in_device *)dev->ip_ptr;
-
-		if (!inet_dev) {
-			pr_err("inet dev is null\n");
-			return -EFAULT;
-		}
-		if (inet_dev->ifa_list) {
-			ipv4_addr = inet_dev->ifa_list->ifa_address;
-			if (!ipv4_addr) {
-				pr_err("ifa_address not available\n");
-				return -EINVAL;
-			}
-
-			if (!ibdev)
-				return -EFAULT;
-
-			if (!ibdev->xl)
-				return -EFAULT;
-
-			config_raw_ip(ibdev->xl, XRNIC_IPV4_ADDR, (u32 *)&ipv4_addr, 0);
-			snprintf(ip_addr, 16, "%pI4", &ipv4_addr);
-			pr_info("IP address is :%s\n", ip_addr);
-		} else {
-			pr_info("IP address not available at present\n");
-			return -EFAULT;
-		}
-	} else {
-		struct inet6_dev *idev;
-		struct inet6_ifaddr *ifp, *tmp;
-		u32 i, ip_avail = 0;
-
-		idev = __in6_dev_get(dev);
-		if (!idev) {
-			pr_err("ipv6 inet device not found\n");
-			return -EFAULT;
-		}
-
-		list_for_each_entry_safe(ifp, tmp, &idev->addr_list, if_list) {
-			pr_info("IP=%pI6, MAC=%pM\n", &ifp->addr, dev->dev_addr);
-			for (i = 0; i < 16; i++) {
-				pr_info("IP=%x\n", ifp->addr.s6_addr[i]);
-				ip_addr[15 - i] = ifp->addr.s6_addr[i];
-			}
-			ip_avail = 1;
-			config_raw_ip(ibdev->xl, XRNIC_IPV6_ADD_1, (u32 *)ifp->addr.s6_addr, 1);
-		}
-
-		if (!ip_avail) {
-			pr_info("IPv6 address not available at present\n");
-			return 0;
-		}
-	}
-	ret = update_mtu(dev);
-	return ret;
-}
 
 
 void xib_set_dev_caps(struct ib_device *ibdev)
@@ -995,6 +1092,15 @@ static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 		dev_err(&pdev->dev, "request irq error!\n");
 		goto err_3;
 	}
+
+    /* start ernic HW */
+	xl->qps_enabled = (ibdev->dev_attr.max_qp - 1);
+	xl->udp_sport = 0x8cd1;
+	xrnic_start(xl);
+    /* register for net dev notifications */
+	register_netdevice_notifier(&cmac_netdev_notifier);
+	register_inetaddr_notifier(&cmac_inetaddr_notifier);
+	register_inet6addr_notifier(&cmac_inet6addr_notifier);
 
     return NULL;
 err_3:

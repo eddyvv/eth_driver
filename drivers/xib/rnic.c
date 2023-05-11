@@ -39,6 +39,23 @@ void config_raw_ip(struct xrnic_local *xl, u32 base, u32 *ip, bool is_ipv6)
 		}
 	}
 }
+
+/*
+ *
+ */
+int xrnic_start(struct xrnic_local *xl)
+{
+	u32 val;
+
+	val = ( XRNIC_EN | (1 << 5) |
+		((xl->qps_enabled & XRNIC_NUM_QP_MASK) << XRNIC_NUM_QP_SHIFT) |
+		((xl->udp_sport & XRNIC_UDP_SPORT_MASK) <<
+		XRNIC_UDP_SPORT_SHIFT) );
+	xrnic_iow(xl, XRNIC_CONF, val);
+
+	return 0;
+}
+
 #define NUM_CQ_INT_BANKS 8
 void xib_irq_event(struct xilinx_ib_dev *xib, u32 status)
 {
