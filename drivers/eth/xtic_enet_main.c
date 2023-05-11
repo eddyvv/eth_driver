@@ -1666,6 +1666,7 @@ static void xtenet_shutdown(struct pci_dev *pdev)
     struct net_device *ndev = pci_get_drvdata(pdev);
 
     xt_printfunc("%s start\n",__func__);
+    // xt_roce_dev_shutdown();
     rtnl_lock();
     netif_device_detach(ndev);
 

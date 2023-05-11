@@ -1122,7 +1122,7 @@ static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
     if(!id)
         return 0;
 
-    return xib_init_instance(dev_info);;
+    return xib_init_instance(dev_info);
 }
 
 static void xib_remove(struct xilinx_ib_dev *xdev)
@@ -1157,10 +1157,43 @@ static void xib_remove(struct xilinx_ib_dev *xdev)
 
 }
 
+static int xib_dispatch_port_error(struct xilinx_ib_dev *dev)
+{
+	struct ib_event err_event;
+
+	err_event.event = IB_EVENT_PORT_ERR;
+	err_event.element.port_num = 1;
+	err_event.device = &dev->ib_dev;
+	ib_dispatch_event(&err_event);
+	return 0;
+}
+
+static void xib_shutdown(struct xilinx_ib_dev *dev)
+{
+    xib_dispatch_port_error(dev);
+    xib_remove(dev);
+}
+
+/* event handling via NIC driver ensures that all the NIC specific
+ * initialization done before RoCE driver notifies
+ * event to stack.
+ */
+static void xib_event_handler(struct xilinx_ib_dev *dev, u32 event)
+{
+	switch (event) {
+	case XT_DEV_SHUTDOWN:
+		xib_shutdown(dev);
+		break;
+	default:
+		break;
+	}
+}
+
 static struct xib_driver xib_driver = {
     .name = "xib driver",
     .add = xib_add,
     .remove = xib_remove,
+    .state_change_handler	= xib_event_handler,
     .xt_abi_version = XT_XIB_ROCE_ABI_VERSION,
 };
 

@@ -27,9 +27,12 @@ struct xib_driver {
     u32 xt_abi_version;
     struct xilinx_ib_dev *(*add) (struct xib_dev_info *dev_info);
     void (*remove) (struct xilinx_ib_dev *);
+    void (*state_change_handler) (struct xilinx_ib_dev *, u32 new_state);
 };
 
-
+enum xt_roce_event {
+	XT_DEV_SHUTDOWN = 2
+};
 
 
 int xt_roce_register_driver(struct xib_driver *drv);

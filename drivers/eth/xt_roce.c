@@ -59,6 +59,18 @@ void xt_roce_dev_remove(struct axienet_local *adapter)
     }
 }
 
+void xt_roce_dev_shutdown(struct axienet_local *adapter)
+{
+    if (xt_roce_supported(adapter)) {
+		mutex_lock(&xt_adapter_list_lock);
+		if (xib_drv && adapter->xib_dev &&
+		    xib_drv->state_change_handler)
+			xib_drv->state_change_handler(adapter->xib_dev,
+							 XT_DEV_SHUTDOWN);
+		mutex_unlock(&xt_adapter_list_lock);
+	}
+}
+
 int xt_roce_register_driver(struct xib_driver *drv)
 {
     struct axienet_local *lp;
