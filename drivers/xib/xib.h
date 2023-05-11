@@ -88,6 +88,9 @@ static inline struct xib_mr *get_xib_mr(struct ib_mr *ibmr)
 {
 	return container_of(ibmr, struct xib_mr, ib_mr);
 }
+
+irqreturn_t xib_irq(int irq, void *ptr);
+
 int xib_bmap_alloc(struct xib_bmap *bmap, u32 max_count, char *name);
 int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num);
 void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num);

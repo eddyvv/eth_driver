@@ -29,6 +29,322 @@ unsigned int app_qp_depth = 16;
 
 unsigned int max_rq_sge = 16;
 
+static ssize_t show_roce_pfc_enable(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	if(xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF) &
+			(1U << XRNIC_ROCE_PFC_EN_BIT))
+		return sprintf(buf, "1\n");
+	else
+		return sprintf(buf, "0\n");
+}
+
+static ssize_t show_non_roce_pfc_enable(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	if(xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF) &
+			(1U << XRNIC_NON_ROCE_PFC_EN_BIT))
+		return sprintf(buf, "1\n");
+	else
+		return sprintf(buf, "0\n");
+}
+
+static ssize_t store_roce_pfc_enable(struct kobject *kobj,
+		        struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, en;
+	val = xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF);
+	en = simple_strtol(buf, NULL, 10);
+
+	if (!en) {
+		val &= ~(1U << XRNIC_ROCE_PFC_EN_BIT);
+		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
+	} else if (en == 1) {
+		val |= (1U << XRNIC_ROCE_PFC_EN_BIT);
+		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
+	} else {
+		pr_err("Error: Write 1 or 0 to enable/disable PFC.\n", val);
+	}
+	return count;
+}
+
+static ssize_t store_non_roce_pfc_enable(struct kobject *kobj,
+		        struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, en;
+	val = xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF);
+	en = simple_strtol(buf, NULL, 10);
+
+	if (!en) {
+		val &= ~(1U << XRNIC_NON_ROCE_PFC_EN_BIT);
+		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
+	} else if (en == 1) {
+		val |= (1U << XRNIC_NON_ROCE_PFC_EN_BIT);
+		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
+	} else {
+		pr_err("Error: Write 1 or 0 to enable/disable PFC.\n", val);
+	}
+	return count;
+}
+
+static ssize_t show_roce_pfc_priority(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	u32 val;
+	val = xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF);
+
+	return sprintf(buf, "%u\n", (val >> XRNIC_ROCE_PFC_PRIO_BIT) &
+				XRNIC_PFC_PRIO_BIT_MASK);
+}
+
+static ssize_t show_non_roce_pfc_priority(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	u32 val;
+	val = xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF);
+
+	return sprintf(buf, "%u\n", (val >> XRNIC_NON_ROCE_PFC_PRIO_BIT) &
+				XRNIC_PFC_PRIO_BIT_MASK);
+}
+
+static ssize_t store_roce_pfc_priority(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, prio;
+	val = xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF);
+	prio = simple_strtol(buf, NULL, 10);
+
+	if (prio >= 0 && prio <= XRNIC_PFC_GLOBAL_PRIOIRTY) {
+		val &= ~(XRNIC_PFC_PRIO_BIT_MASK << XRNIC_ROCE_PFC_PRIO_BIT);
+		val |= (prio << XRNIC_ROCE_PFC_PRIO_BIT);
+		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
+	} else {
+		pr_err("Error: Priority value must be 0 to 8.\n");
+	}
+	return count;
+}
+
+
+static ssize_t store_non_roce_pfc_priority(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, prio;
+	val = xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF);
+	prio = simple_strtol(buf, NULL, 10);
+
+	if (prio >= 0 && prio <= XRNIC_PFC_GLOBAL_PRIOIRTY) {
+		val &= ~(XRNIC_PFC_PRIO_BIT_MASK << XRNIC_NON_ROCE_PFC_PRIO_BIT);
+		val |= (prio << XRNIC_NON_ROCE_PFC_PRIO_BIT);
+		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
+	} else {
+		pr_err("Error: Priority value must be 0 to 8.\n");
+	}
+	return count;
+}
+
+static ssize_t show_roce_pfc_xon(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	u32 val;
+	val = xrnic_ior(ibdev->xl, XRNIC_ROCE_PAUSE_OFFSET);
+	return sprintf(buf, "%u\n", val & 0xFFFF);
+}
+
+static ssize_t show_non_roce_pfc_xon(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	u32 val;
+	val = xrnic_ior(ibdev->xl, XRNIC_NON_ROCE_PAUSE_OFFSET);
+	return sprintf(buf, "%u\n", val & 0xFFFF);
+}
+
+static ssize_t store_roce_pfc_xon(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, xon;
+	val = xrnic_ior(ibdev->xl, XRNIC_ROCE_PAUSE_OFFSET);
+	xon = simple_strtol(buf, NULL, 10);
+
+	if (xon >= PFC_XON_XOFF_MIN && xon <= PFC_XON_XOFF_MAX) {
+		xrnic_iow(ibdev->xl, XRNIC_ROCE_PAUSE_OFFSET, xon | (val & 0xFFFF0000));
+	} else {
+		pr_err("Error: XON threshold must be 0 to 512.\n", val);
+	}
+	return count;
+}
+
+static ssize_t store_non_roce_pfc_xon(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, xon;
+	val = xrnic_ior(ibdev->xl, XRNIC_NON_ROCE_PAUSE_OFFSET);
+	xon = simple_strtol(buf, NULL, 10);
+
+	if (xon >= PFC_XON_XOFF_MIN && xon <= PFC_XON_XOFF_MAX) {
+		xrnic_iow(ibdev->xl, XRNIC_NON_ROCE_PAUSE_OFFSET, xon | (val & 0xFFFF0000));
+	} else {
+		pr_err("Error: XON threshold must be 0 to 512.\n", val);
+	}
+	return count;
+}
+
+static ssize_t show_non_roce_pfc_xoff(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	u32 val;
+	val = xrnic_ior(ibdev->xl, XRNIC_NON_ROCE_PAUSE_OFFSET);
+	return sprintf(buf, "%u\n", val >> 16);
+}
+
+static ssize_t show_roce_pfc_xoff(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	u32 val;
+	val = xrnic_ior(ibdev->xl, XRNIC_ROCE_PAUSE_OFFSET);
+	return sprintf(buf, "%u\n", val >> 16);
+}
+
+static ssize_t store_roce_pfc_xoff(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, xoff;
+	val = xrnic_ior(ibdev->xl, XRNIC_ROCE_PAUSE_OFFSET);
+	xoff = simple_strtol(buf, NULL, 10);
+	if (xoff >= PFC_XON_XOFF_MIN && xoff <= PFC_XON_XOFF_MAX) {
+		xrnic_iow(ibdev->xl, XRNIC_ROCE_PAUSE_OFFSET, (xoff << 16) | (val & 0xFFFF));
+	} else {
+		pr_err("Error: XOFF threshold must be 0 to 512.\n", val);
+	}
+	return count;
+}
+
+
+static ssize_t store_non_roce_pfc_xoff(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, xoff;
+	val = xrnic_ior(ibdev->xl, XRNIC_NON_ROCE_PAUSE_OFFSET);
+	xoff = simple_strtol(buf, NULL, 10);
+	if (xoff >= PFC_XON_XOFF_MIN && xoff <= PFC_XON_XOFF_MAX) {
+		xrnic_iow(ibdev->xl, XRNIC_NON_ROCE_PAUSE_OFFSET, (xoff << 16) | (val & 0xFFFF));
+	} else {
+		pr_err("Error: XOFF threshold must be 0 to 512.\n", val);
+	}
+	return count;
+}
+
+static ssize_t show_pfc_priority_check(struct kobject *kobj,
+		        struct kobj_attribute *attr, char *buf)
+{
+	u32 val;
+
+	val = xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF);
+	return sprintf(buf, "%u\n", (val >> XRNIC_DIS_PRIO_CHECK_BIT) & 1);
+}
+
+static ssize_t store_pfc_priority_check(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			const char *buf, size_t count)
+{
+	u32 val, temp;
+
+	val = xrnic_ior(ibdev->xl, XRNIC_PAUSE_CONF);
+	temp = simple_strtol(buf, NULL, 10);
+
+	if (temp == 1) {
+		val |= (1 << XRNIC_DIS_PRIO_CHECK_BIT);
+		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
+	} else if (!temp) {
+		val &= ~(1 << XRNIC_DIS_PRIO_CHECK_BIT);
+		xrnic_iow(ibdev->xl, XRNIC_PAUSE_CONF, val);
+	} else {
+		pr_err("Error: value must be either a 1 or 0\n");
+	}
+	return count;
+}
+
+
+static struct kobj_attribute disable_priory_check_attr =
+__ATTR(dis_prioirty_check, 0660, show_pfc_priority_check, store_pfc_priority_check);
+
+/* Non-RoCE PFC configuration */
+static struct kobj_attribute non_roce_pfc_enable_attr =
+__ATTR(en_non_roce_pfc, 0660, show_non_roce_pfc_enable, store_non_roce_pfc_enable);
+
+static struct kobj_attribute non_roce_pfc_priority_attr =
+__ATTR(non_roce_pfc_priority, 0660, show_non_roce_pfc_priority, store_non_roce_pfc_priority);
+
+static struct kobj_attribute non_roce_pfc_xon_attr =
+__ATTR(non_roce_xon_threshold, 0660, show_non_roce_pfc_xon, store_non_roce_pfc_xon);
+
+static struct kobj_attribute non_roce_pfc_xoff_attr =
+__ATTR(non_roce_xoff_threshold, 0660, show_non_roce_pfc_xoff, store_non_roce_pfc_xoff);
+
+
+/* RoCE PFC configuration */
+static struct kobj_attribute roce_pfc_enable_attr =
+__ATTR(en_roce_pfc, 0660, show_roce_pfc_enable, store_roce_pfc_enable);
+
+static struct kobj_attribute roce_pfc_priority_attr =
+__ATTR(roce_pfc_priority, 0660, show_roce_pfc_priority, store_roce_pfc_priority);
+
+static struct kobj_attribute roce_pfc_xon_attr =
+__ATTR(roce_xon_threshold, 0660, show_roce_pfc_xon, store_roce_pfc_xon);
+
+static struct kobj_attribute roce_pfc_xoff_attr =
+__ATTR(roce_xoff_threshold, 0660, show_roce_pfc_xoff, store_roce_pfc_xoff);
+
+
+static struct attribute *pfc_attrs[] = {
+	&roce_pfc_enable_attr.attr,
+	&roce_pfc_priority_attr.attr,
+	&roce_pfc_xon_attr.attr,
+	&roce_pfc_xoff_attr.attr,
+
+	&non_roce_pfc_enable_attr.attr,
+	&non_roce_pfc_priority_attr.attr,
+	&non_roce_pfc_xon_attr.attr,
+	&non_roce_pfc_xoff_attr.attr,
+	&disable_priory_check_attr.attr,
+	NULL,
+};
+
+struct attribute_group pfc_attr_group = {
+	.attrs = pfc_attrs,
+};
+
+static int pfc_create_sysfs_entries(const char *name,
+				struct kobject *parent,
+				const struct attribute_group *grp,
+				struct kobject **kobj)
+{
+	int ret = 0;
+
+	*kobj = kobject_create_and_add(name, parent);
+
+	if (!*kobj) {
+		pr_err("pfc %s sysfs create failed", name);
+		return -ENOMEM;
+	}
+
+	ret = sysfs_create_group(*kobj, grp);
+	if (ret < 0) {
+		pr_err("%s unable to create pfc %s sysfs entries\n",
+				__func__, name);
+		return ret;
+	}
+
+	return ret;
+}
+
 int update_mtu(struct net_device *dev)
 {
 	u32 mtu;
@@ -666,8 +982,25 @@ static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 
     dev_dbg(&pdev->dev, "gsi qpn: %d\n", qpn);
 
-    return NULL;
+    if(pfc_create_sysfs_entries("pfc", &ibdev->ib_dev.dev.kobj,
+			&pfc_attr_group, &ibdev->pfc_kobj)) {
+		dev_err(&pdev->dev, "Failed to create PFC sysfs entry\n");
+		goto err_2;
+	}
 
+    /* register irq */
+	err = request_irq(xl->irq, xib_irq, IRQF_SHARED, "xrnic_intr0",
+			(void *)ibdev);
+	if (err) {
+		dev_err(&pdev->dev, "request irq error!\n");
+		goto err_3;
+	}
+
+    return NULL;
+err_3:
+	kobject_put(ibdev->pfc_kobj);
+err_2:
+	ib_unregister_device(&ibdev->ib_dev);
 err_1:
 	return err;
 }

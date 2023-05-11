@@ -39,6 +39,140 @@ void config_raw_ip(struct xrnic_local *xl, u32 base, u32 *ip, bool is_ipv6)
 		}
 	}
 }
+#define NUM_CQ_INT_BANKS 8
+void xib_irq_event(struct xilinx_ib_dev *xib, u32 status)
+{
+	struct xrnic_local *xl = xib->xl;
+	u32 cq_ints, base;
+	struct xib_qp *qp = NULL;
+	uint32_t i, qpn, qp_num;
+
+	if (status & XRNIC_INT_WQE_COMP)
+		base = XRNIC_COMPQ_INT_STAT_0_31;
+	else if(status & XRNIC_INT_RQ_PKT_RCVD)
+		base = XRNIC_RCVQ_INT_STAT_0_31;
+	else if (status & XRNIC_INT_CNP)
+		base = XRNIC_CNP_INT_STAT_0_31;
+	else
+		return;
+
+	for (i = 0; i < NUM_CQ_INT_BANKS; i++) {
+		cq_ints = xrnic_ior(xl, (base + (i * 4)));
+
+		/* clear cq int*/
+		xrnic_iow(xl, (base + (i * 4)), cq_ints);
+
+		qpn = ffs(cq_ints);
+		while (qpn) {
+			//dev_dbg(&xib->ib_dev.dev, "wqe complete on qpn: %d\n", qpn);
+			qp_num = (i * 32) + qpn;
+			qp = xib->qp_list[qp_num - 2];
+
+			/* the Bottom half invokes kernel user app's functions registered
+				for RQ & CQ completions which are not invoked when it's a
+				user QP */
+			if (!qp) {
+				pr_err("qp doesnt exist : qpn is %d \n", qp_num);
+			}
+
+			if (status & XRNIC_INT_CNP)
+				tasklet_schedule(&qp->cnp_task);
+			else if (qp->qp_type != XIB_QP_TYPE_USER)
+				tasklet_schedule(&qp->comp_task);
+
+			cq_ints &= ~(1 << (qpn - 1));
+			qpn = ffs(cq_ints);
+		}
+	}
+}
+
+void xib_fatal_event(struct xilinx_ib_dev *xib)
+{
+	u32 in_pkt_err_db;
+	struct xrnic_local *xl = xib->xl;
+	u32 entry, qp_num, val;
+	int i, received;
+	struct xib_qp *qp = NULL;
+
+	in_pkt_err_db = xrnic_ior(xl, XRNIC_INCG_PKT_ERRQ_WPTR);
+
+	if (in_pkt_err_db == xl->in_pkt_err_db_local) {
+		return;
+	}
+
+	if (xl->in_pkt_err_db_local > in_pkt_err_db)
+		received = (in_pkt_err_db + XRNIC_IN_PKT_ERRQ_DEPTH) -
+				xl->in_pkt_err_db_local;
+	else
+		received = in_pkt_err_db - xl->in_pkt_err_db_local;
+
+	for (i = 0; i < received; i++) {
+		if (xl->in_pkt_err_db_local == XRNIC_IN_PKT_ERRQ_DEPTH)
+			xl->in_pkt_err_db_local = 0;
+		entry = xl->in_pkt_err_db_local;
+
+		val = *(volatile u32 *)(xl->in_pkt_err_va + (8 * entry));
+		qp_num = (val & 0xffff0000) >> 16;
+		printk("Fatal error on qp_num: %d\n", qp_num);
+		val = xrnic_ior(xib->xl, XRNIC_QP_CONF(qp_num - 1));
+		val &= ~(QP_ENABLE);
+		val |= QP_UNDER_RECOVERY;
+		xrnic_iow(xib->xl, XRNIC_QP_CONF(qp_num - 1), val);
+
+		qp = xib->qp_list[qp_num - 1];
+		if (qp)
+			tasklet_schedule(&qp->fatal_hdlr_task);
+		xl->in_pkt_err_db_local++;
+	}
+
+	/* clear fatal interrupt */
+	val = xrnic_ior(xib->xl, XRNIC_INT_STAT);
+	val |= XRNIC_INT_FATAL_ERR_RCVD;
+	xrnic_iow(xib->xl, XRNIC_INT_STAT, val);
+}
+
+/*
+ *
+ */
+irqreturn_t xib_irq(int irq, void *ptr)
+{
+	struct xilinx_ib_dev *xib = (struct xilinx_ib_dev *)ptr;
+	struct xrnic_local *xl = xib->xl;
+	u32 status;
+	struct xib_qp *qp;
+
+	status = xrnic_ior(xl, XRNIC_INT_STAT);
+	rmb();
+
+	//dev_dbg(&xib->ib_dev.dev, "%s status : %d <---------- \n", __func__, status);
+
+	/* clear the interrupt */
+	xrnic_iow(xl, XRNIC_INT_STAT, status);
+	wmb();
+
+	if (status & XRNIC_INT_WQE_COMP)
+		xib_irq_event(xib, XRNIC_INT_WQE_COMP);
+
+	if (status & XRNIC_INT_RQ_PKT_RCVD)
+		/* @TODO This is to  test CNP. Remove this once the testing is done */
+		xib_irq_event(xib, XRNIC_INT_RQ_PKT_RCVD);
+
+	if (status & XRNIC_INT_CNP)
+		xib_irq_event(xib, XRNIC_INT_CNP);
+
+	if (status & XRNIC_INT_INC_MAD_PKT) {
+		qp = xib->gsi_qp;
+		tasklet_schedule(&qp->comp_task);
+	}
+
+	if (status & XRNIC_INT_FATAL_ERR_RCVD) {
+		pr_err("xib_irq: qp fatal error!\n");
+		xib_fatal_event(xib);
+	}
+
+
+	return IRQ_HANDLED;
+}
 
 int xrnic_reg_mr(struct xilinx_ib_dev *xib, u64 va, u64 len,
 		u64 *pbl_tbl, int umem_pgs, int pdn, u32 mr_idx, u8 rkey)
