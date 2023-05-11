@@ -14,7 +14,6 @@
 #include "xib-abi.h"
 #include "xtic_common.h"
 #include "../eth/xtic_enet.h"
-
 #include "xib.h"
 #include "ib_verbs.h"
 
@@ -59,6 +58,22 @@ int update_mtu(struct net_device *dev)
 	pr_debug("Updating MTU to %d\n", mtu);
 	ibdev->mtu = mtu;
 	return 0;
+}
+
+static void xib_get_guid(u8 *dev_addr, u8 *guid)
+{
+	u8 mac[ETH_ALEN];
+
+	/* MAC-48 to EUI-64 mapping */
+	memcpy(mac, dev_addr, ETH_ALEN);
+	guid[0] = mac[0] ^ 2;
+	guid[1] = mac[1];
+	guid[2] = mac[2];
+	guid[3] = 0xff;
+	guid[4] = 0xfe;
+	guid[5] = mac[3];
+	guid[6] = mac[4];
+	guid[7] = mac[5];
 }
 
 int xib_alloc_ucontext(struct ib_ucontext *uctx, struct ib_udata *udata)
@@ -415,8 +430,11 @@ static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 {
     int err;
     struct pci_dev *pdev = dev_info->pdev;
+    struct net_device *netdev;
+    struct device *dev = &dev_info->pdev->dev;
     struct xrnic_local *xl;
-
+    u32 qpn, rtr_count;
+    u64 rtr_addr = 0;
 
     ibdev = (struct xilinx_ib_dev *)ib_alloc_device(xilinx_ib_dev, ib_dev);
 	if(!ibdev) {
@@ -443,6 +461,46 @@ static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 	}
 
     err = update_mtu(ibdev->netdev);
+    netdev = ibdev->netdev;
+    xib_get_guid(netdev->dev_addr, (u8 *)&ibdev->ib_dev.node_guid);
+
+    ibdev->dev_attr.max_qp = XIB_NUM_QP;
+    ibdev->dev_attr.max_pd = XIB_NUM_PD;
+    ibdev->dev_attr.max_send_sge = XIB_MAX_SGL_DEPTH;
+
+    dev_dbg(&pdev->dev, "%s: qp:%d pd:%d sgl_depth:%d \n", __func__, ibdev->dev_attr.max_qp,
+			ibdev->dev_attr.max_pd,	ibdev->dev_attr.max_send_sge);
+
+    ibdev->dev_attr.max_cq_wqes	= 1024;
+	ibdev->dev_attr.max_mr		= ibdev->dev_attr.max_pd;
+
+    /* initialize retry bufs
+	* qp 0 doesnt exist
+	* qp 1 is UD so no rtr buf needed
+	*/
+#if 0
+	rtr_count = (ibdev->dev_attr.max_qp - 2 )*16;
+#else
+	rtr_count = 1024;
+#endif
+
+    xl->retry_buf_va = dma_alloc_coherent(dev,
+                        (rtr_count * XRNIC_SIZE_OF_DATA_BUF),
+						 &rtr_addr,
+						 GFP_KERNEL);
+    if (!rtr_addr) {
+		dev_err(&pdev->dev, "Failed to allocate rtr bufs\n");
+		return -ENOMEM;
+	}
+    xl->retry_buf_pa = rtr_addr;
+
+	xrnic_iow(xl, XRNIC_DATA_BUF_BASE_LSB, rtr_addr);
+	xrnic_iow(xl, XRNIC_DATA_BUF_BASE_MSB, UPPER_32_BITS(rtr_addr));
+	wmb();
+	xrnic_iow(xl, XRNIC_DATA_BUF_SZ,
+		rtr_count | ( XRNIC_SIZE_OF_DATA_BUF << 16));
+	wmb();
+
 
     return NULL;
 }

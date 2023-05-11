@@ -2,7 +2,7 @@
 #define _XRNIC_H_
 
 #include "../eth/xt_roce.h"
-
+#include "xib_conf.h"
 #define XRNIC_INVALID_OPC -1
 
 #define XRNIC_BUF_RKEY_MASK		(0xFF)
