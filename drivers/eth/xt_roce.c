@@ -5,17 +5,17 @@ static struct xib_driver *xib_drv;
 static LIST_HEAD(xt_roce_list);
 static DEFINE_MUTEX(xt_adapter_list_lock);
 
-static void _xt_roce_dev_add(struct axienet_local *adapter)
+static int _xt_roce_dev_add(struct axienet_local *adapter)
 {
     struct xib_dev_info dev_info;
     struct pci_dev *pdev = adapter->pdev;
-
+    int err;
     if(!xib_drv)
-        return;
+        return -ENOMEM;
 
     if(xib_drv->xt_abi_version != XT_ROCE_ABI_VERSION) {
         dev_warn(&pdev->dev,"Cannot initialize RoCE due to xib ABI mismatch\n");
-        return;
+        return -EINVAL;
     }
 
     dev_info.pdev = adapter->pdev;
@@ -25,18 +25,29 @@ static void _xt_roce_dev_add(struct axienet_local *adapter)
     dev_info.ethdev = adapter;
     memcpy(dev_info.mac_addr, adapter->mac_addr, ETH_ALEN);
 
-    xib_drv->add(&dev_info, adapter->xib_dev);
+    err = xib_drv->add(&dev_info, adapter->xib_dev);
+    if (err)
+    {
+        dev_err(&pdev->dev, "xib_drv->add fail (err = %d)\n", err);
+        return err;
+    }
+    return 0;
 }
 
 void xt_roce_dev_add(struct axienet_local *adapter)
 {
+    int ret;
     xt_printfunc("%s start\n", __func__);
 
     if (xt_roce_supported(adapter)) {
         INIT_LIST_HEAD(&adapter->entry);
         mutex_lock(&xt_adapter_list_lock);
         list_add_tail(&adapter->entry, &xt_roce_list);
-        _xt_roce_dev_add(adapter);
+        ret = _xt_roce_dev_add(adapter);
+        if (ret)
+			dev_err(&adapter->pdev->dev,
+				"match and instantiation failed for port, ret = %d\n",
+				ret);
         mutex_unlock(&xt_adapter_list_lock);
     }
     xt_printfunc("%s end\n", __func__);
@@ -74,6 +85,7 @@ void xt_roce_dev_shutdown(struct axienet_local *adapter)
 int xt_roce_register_driver(struct xib_driver *drv)
 {
     struct axienet_local *lp;
+    int ret;
 
     xt_printfunc("%s start\n", __func__);
     mutex_lock(&xt_adapter_list_lock);
@@ -84,7 +96,11 @@ int xt_roce_register_driver(struct xib_driver *drv)
 	xib_drv = drv;
 
     list_for_each_entry(lp, &xt_roce_list, entry) {
-		_xt_roce_dev_add(lp);
+		ret = _xt_roce_dev_add(lp);
+        if (ret)
+			dev_err(&lp->pdev->dev,
+				"match and instantiation failed for port, ret = %d\n",
+				ret);
 	}
     mutex_unlock(&xt_adapter_list_lock);
 
