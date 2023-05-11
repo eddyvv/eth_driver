@@ -75,8 +75,7 @@ static int xib_mmap(struct ib_ucontext *ibucontext,
 			 struct vm_area_struct *vma)
 {
 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibucontext->device);
-	struct xrnic_local *xl = xib->xl;
-	u64 pfn;
+	// struct xrnic_local *xl = xib->xl;
 	ssize_t length;
 
 	if (((vma->vm_end - vma->vm_start) % PAGE_SIZE) != 0)
@@ -84,7 +83,7 @@ static int xib_mmap(struct ib_ucontext *ibucontext,
 
 	length = vma->vm_end - vma->vm_start;
 
-	dev_dbg(&xib->ib_dev.dev, "%s : pg_off: %x length: %x \n", __func__, vma->vm_pgoff, length);
+	dev_dbg(&xib->ib_dev.dev, "%s : pg_off: %lx length: %lx \n", __func__, vma->vm_pgoff, length);
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	if (io_remap_pfn_range(vma,
 				vma->vm_start,

@@ -23,7 +23,7 @@ int xrnic_reg_mr(struct xilinx_ib_dev *xib, u64 va, u64 len,
 //	dev_dbg(&xib->ib_dev.dev, "%s: pbl_tbl: %px \n", __func__, pbl_tbl);
 
 	for(i = 0; i < umem_pgs; i++)
-		dev_dbg(&xib->ib_dev.dev, "pbl_tbl[%d]: %lx \n", i, pbl_tbl[i]);
+		dev_dbg(&xib->ib_dev.dev, "pbl_tbl[%d]: %llx \n", i, pbl_tbl[i]);
 	xrnic_iow(xl, XRNIC_MR_PDNUM(mr_idx), pdn);
 	xrnic_iow(xl, XRNIC_MR_VA_LO(mr_idx), (va & 0xffffffff));
 	xrnic_iow(xl, XRNIC_MR_VA_HI(mr_idx), (va >> 32) & 0xFFFFFFFF);
@@ -116,7 +116,6 @@ struct xrnic_local *xrnic_hw_init(struct pci_dev *pdev, struct xilinx_ib_dev *xi
     // struct axienet_local *lp = pci_get_drvdata(pdev);
 	u32 *db_buf;
 	u64 db_buf_pa;
-	int err;
 
 	xl = kzalloc(sizeof(*xl), GFP_KERNEL);
 	if (!xl) {
@@ -132,7 +131,7 @@ struct xrnic_local *xrnic_hw_init(struct pci_dev *pdev, struct xilinx_ib_dev *xi
 	xl->db_pa = (res->start + 0x20000);
 	xl->db_size = (res->end - (res->start + 0x20000) + 1);
 
-	dev_dbg(&pdev->dev, "xl->reg_base: %lx\n", xl->reg_base);
+	dev_dbg(&pdev->dev, "xl->reg_base: %hhn\n", xl->reg_base);
 
 	// xl->irq = ;
 	if (xl->irq <= 0) {
@@ -143,6 +142,31 @@ struct xrnic_local *xrnic_hw_init(struct pci_dev *pdev, struct xilinx_ib_dev *xi
     /* set default hw config */
 	xrnic_set_bufs(pdev, xl);
 
+    /* enable all interrupts */
+	xrnic_iow(xl, XRNIC_INT_EN, 0xff);
+
+    // db_buf = ;
+    if (!db_buf) {
+		printk("failed to alloc db mem %s:%d\n",
+							__func__, __LINE__);
+		goto fail;
+	}
+
+    xl->qp1_rq_db_p = db_buf_pa;
+	xl->qp1_rq_db_v = db_buf;
+
+    db_buf = dma_alloc_coherent(&pdev->dev, PAGE_SIZE, (dma_addr_t *)&db_buf_pa,
+			GFP_KERNEL);
+	if (!db_buf) {
+		dev_err(&pdev->dev, "failed to alloc db mem\n");
+		goto fail;
+	}
+
+	/* 512 bytes for all DBs for all QPs? TODO */
+	xl->qp1_sq_db_v = db_buf;
+	xl->qp1_sq_db_p = db_buf_pa;
+
+    return xl;
 
 fail:
 	kfree(xl);
