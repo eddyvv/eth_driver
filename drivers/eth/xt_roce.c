@@ -25,7 +25,7 @@ static void _xt_roce_dev_add(struct axienet_local *adapter)
     dev_info.ethdev = adapter;
     memcpy(dev_info.mac_addr, adapter->mac_addr, ETH_ALEN);
 
-    adapter->xib_dev = xib_drv->add(&dev_info);
+    xib_drv->add(&dev_info, adapter->xib_dev);
 }
 
 void xt_roce_dev_add(struct axienet_local *adapter)

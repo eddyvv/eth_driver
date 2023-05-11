@@ -25,7 +25,7 @@ struct xib_dev_info {
 struct xib_driver {
     unsigned char name[32];
     u32 xt_abi_version;
-    struct xilinx_ib_dev *(*add) (struct xib_dev_info *dev_info);
+    int (*add) (struct xib_dev_info *, struct xilinx_ib_dev *);
     void (*remove) (struct xilinx_ib_dev *);
     void (*state_change_handler) (struct xilinx_ib_dev *, u32 new_state);
 };

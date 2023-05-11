@@ -589,7 +589,7 @@ int xib_alloc_ucontext(struct ib_ucontext *uctx, struct ib_udata *udata)
 
 static void xib_dealloc_ucontext(struct ib_ucontext *ibucontext)
 {
-	struct xib_ucontext *context = get_xib_ucontext(ibucontext);
+	// struct xib_ucontext *context = get_xib_ucontext(ibucontext);
 
 	dev_dbg(&ibucontext->device->dev, "%s : <---------- \n", __func__);
 
@@ -928,7 +928,8 @@ void xib_set_dev_caps(struct ib_device *ibdev)
 		(1ULL << IB_USER_VERBS_CMD_DESTROY_QP);
 }
 
-static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
+static int xib_init_instance(struct xib_dev_info *dev_info,
+                                                struct xilinx_ib_dev *xib)
 {
     int err;
     struct pci_dev *pdev = dev_info->pdev;
@@ -1102,7 +1103,7 @@ static struct xilinx_ib_dev *xib_init_instance(struct xib_dev_info *dev_info)
 	register_inetaddr_notifier(&cmac_inetaddr_notifier);
 	register_inet6addr_notifier(&cmac_inet6addr_notifier);
 
-    return NULL;
+    return 0;
 err_3:
 	kobject_put(ibdev->pfc_kobj);
 err_2:
@@ -1111,7 +1112,7 @@ err_1:
 	return err;
 }
 
-static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
+static int xib_add(struct xib_dev_info *dev_info, struct xilinx_ib_dev *xib)
 {
     struct pci_dev *pdev = dev_info->pdev;
     const struct pci_device_id *id;
@@ -1122,7 +1123,7 @@ static struct xilinx_ib_dev *xib_add(struct xib_dev_info *dev_info)
     if(!id)
         return 0;
 
-    return xib_init_instance(dev_info);
+    return xib_init_instance(dev_info, xib);
 }
 
 static void xib_remove(struct xilinx_ib_dev *xdev)
