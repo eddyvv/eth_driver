@@ -10,6 +10,7 @@
         "xtic_common.h": "c",
         "xt_roce.h": "c",
         "xib.h": "c",
-        "rnic.h": "c"
+        "rnic.h": "c",
+        "interrupt.h": "c"
     }
 }

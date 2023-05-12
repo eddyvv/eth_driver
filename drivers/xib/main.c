@@ -843,7 +843,7 @@ struct ib_qp *xib_create_qp(struct ib_pd *pd,
 
 	switch (init_attr->qp_type) {
 	//case IB_QPT_GSI:
-		//return xib_gsi_create_qp(pd, init_attr); 
+		//return xib_gsi_create_qp(pd, init_attr);
 	case IB_QPT_RC:
 	if (!check_qp_depths(init_attr->cap.max_send_wr)) {
 		dev_err(&pd->device->dev, "qp depth should be a power of 2\n");
@@ -853,11 +853,11 @@ struct ib_qp *xib_create_qp(struct ib_pd *pd,
 		dev_err(&pd->device->dev, "qp depth should be a power of 2\n");
 		return ERR_PTR(-EINVAL);
 	}
-	if (udata) 
+	// if (udata)
 		//ibqp = xib_create_user_qp(pd, init_attr, udata);
 		// else
 		// 	ibqp = xib_create_kernel_qp(pd, init_attr);
-/* 
+/*
  * AR# 75247: Initialize STAT_QPN.curr_rnr_retry_cnt and curr_retry_cnt
  */
 		qp = get_xib_qp(ibqp);
@@ -967,7 +967,7 @@ int xib_create_ah(struct ib_ah *ibah, struct rdma_ah_init_attr *ah_attr,
 
 int xib_destroy_ah(struct ib_ah *ib_ah, uint32_t flags)
 {
-	struct xib_ah *ah = get_xib_ah(ib_ah);
+	// struct xib_ah *ah = get_xib_ah(ib_ah);
 
 	dev_dbg(&ib_ah->device->dev, "%s : <---------- \n", __func__);
 	return 0;
@@ -996,7 +996,7 @@ static const struct ib_device_ops xib_dev_ops = {
 	.get_link_layer	= xib_get_link_layer,
 	.get_netdev	= xib_get_netdev,
 
-	.create_ah	= xib_create_ah,	
+	.create_ah	= xib_create_ah,
 	.destroy_ah	= xib_destroy_ah,
 	//.create_qp	= xib_create_qp,
 

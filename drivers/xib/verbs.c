@@ -58,9 +58,9 @@ void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num)
 		return;
 	}
 #endif
-
+}
 /*
- * 
+ *
  */
 void xib_qp_add(struct xilinx_ib_dev *xib, struct xib_qp *qp)
 {
@@ -166,7 +166,7 @@ void xib_qp_add(struct xilinx_ib_dev *xib, struct xib_qp *qp)
 // }
 
 /*
- * 
+ *
  */
 dma_addr_t get_phys_addr(uint64_t va)
 {
@@ -248,7 +248,7 @@ struct ib_qp *xib_create_user_qp(struct ib_pd *ib_pd,
 	/* there is no QP0 in ernic
 	 * so QP1 index starts with 0
 	 */
-	qp->ib_qp.qp_num = qp->hw_qpn + 1; 
+	qp->ib_qp.qp_num = qp->hw_qpn + 1;
 	qp->qp_type	 = XIB_QP_TYPE_USER;
 
 	/* program the send cq base */
@@ -312,8 +312,8 @@ struct ib_qp *xib_create_user_qp(struct ib_pd *ib_pd,
 // 	if (!qp->rq.rqe_list)
 // 		goto fail_1;
 
-// 	/* xrnic only supports 16bit wrid 
-// 	 * array to store 64bit wrid from the stack 
+// 	/* xrnic only supports 16bit wrid
+// 	 * array to store 64bit wrid from the stack
 // 	 */
 // 	qp->sq.wr_id_array = kcalloc(qp->sq.max_wr, sizeof(*qp->sq.wr_id_array), GFP_KERNEL);
 
@@ -339,7 +339,7 @@ struct ib_qp *xib_create_user_qp(struct ib_pd *ib_pd,
 
 // 	xib->gsi_qp = qp;
 
-// 	tasklet_init(&qp->comp_task, xib_gsi_comp_handler, 
+// 	tasklet_init(&qp->comp_task, xib_gsi_comp_handler,
 // 			(unsigned long)xib);
 
 // 	spin_lock_init(&qp->sq_lock);
@@ -365,4 +365,3 @@ struct ib_qp *xib_create_user_qp(struct ib_pd *ib_pd,
 
 // }
 
-}

@@ -445,7 +445,7 @@ void xib_fatal_handler(unsigned long data)
 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
 	unsigned long timeout;
 	u32 val;
-	int rhost, ret;
+	int ret;
 
 	/* 1. Wait till SQ/OSQ are empty */
 	val = xrnic_ior(xib->xl, XRNIC_STAT_QP(qp->hw_qpn));
