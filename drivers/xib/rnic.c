@@ -489,6 +489,7 @@ dma_addr_t xrnic_buf_alloc(struct xrnic_local *xl, u32 size, u32 count)
 	void *buf;
     dma_addr_t addr;
 
+    xib_printfunc("%s start\n", __func__);
 	order = get_order(PAGE_ALIGN(size * count));
 	buf = (void *)__get_free_pages(GFP_KERNEL, order);
 	if (!buf) {
@@ -506,6 +507,7 @@ dma_addr_t xrnic_buf_alloc(struct xrnic_local *xl, u32 size, u32 count)
 				:%d\n", order);
 		return 0;
 	}
+    xib_printfunc("%s end\n", __func__);
 	return addr;
 }
 
@@ -514,6 +516,7 @@ static void xrnic_set_bufs(struct pci_dev *pdev, struct xrnic_local *xl)
     dma_addr_t addr;
 	u32 val;
 
+    xib_printfunc("%s start\n", __func__);
     addr = xrnic_buf_alloc(xl, XRNIC_SIZE_OF_ERROR_BUF, XRNIC_NUM_OF_ERROR_BUF);
 	if (!addr) {
 		dev_err(&pdev->dev, "xrnic_set_bufs: Failed to allocate err bufs\n");
@@ -543,6 +546,7 @@ static void xrnic_set_bufs(struct pci_dev *pdev, struct xrnic_local *xl)
 	wmb();
 	xrnic_iow(xl, XRNIC_RSP_ERR_BUF_DEPTH, (XRNIC_RESP_ERR_BUF_DEPTH << 16 | XRNIC_RESP_ERR_BUF_SIZE));
 	wmb();
+    xib_printfunc("%s end\n", __func__);
 }
 
 
@@ -550,10 +554,10 @@ struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_i
 {
     struct xrnic_local *xl;
     struct pci_dev *pdev = dev_info->pdev;
-	struct resource *res;
 	u32 *db_buf;
 	u64 db_buf_pa;
 
+    xib_printfunc("%s start\n", __func__);
 	xl = kzalloc(sizeof(*xl), GFP_KERNEL);
 	if (!xl) {
 		dev_err(&pdev->dev, "memory alloc failed\n");
@@ -565,12 +569,12 @@ struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_i
 	xl->in_pkt_err_va = NULL;
     xl->reg_base = dev_info->xib_regAddr;
     /* store pa of reg for db access */
-	xl->db_pa = (res->start + 0x20000);
-	xl->db_size = (res->end - (res->start + 0x20000) + 1);
+	// xl->db_pa = (res->start + 0x20000);
+	// xl->db_size = (res->end - (res->start + 0x20000) + 1);
 
 	dev_dbg(&pdev->dev, "xl->reg_base: %hhn\n", xl->reg_base);
-
-	// xl->irq = ;
+    xib_printfunc("%s %d end\n", __func__, __LINE__);
+	xl->irq = dev_info->xib_irq;
 	if (xl->irq <= 0) {
 		dev_err(&pdev->dev, "ernic dev get of irq failed!\n");
 		goto fail;
@@ -602,7 +606,7 @@ struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_i
 	/* 512 bytes for all DBs for all QPs? TODO */
 	xl->qp1_sq_db_v = db_buf;
 	xl->qp1_sq_db_p = db_buf_pa;
-
+    xib_printfunc("%s end\n", __func__);
     return xl;
 
 fail:

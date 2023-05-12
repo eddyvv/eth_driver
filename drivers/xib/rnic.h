@@ -1,6 +1,6 @@
 #ifndef _XRNIC_H_
 #define _XRNIC_H_
-
+#include "xtic_common.h"
 #include "../eth/xt_roce.h"
 #include "xib_conf.h"
 #define XRNIC_INVALID_OPC -1
@@ -481,6 +481,33 @@ struct xrnic_wr
 	u32	imm_data;
 	u8	resvd[12];
 }__attribute__((packed));
+
+static inline void xrnic_iow32(u8 __iomem *base, off_t offset, u32 value)
+{
+#ifdef WRITE_REG
+    iowrite32(value, base + offset);
+	wmb();
+    #ifdef PRINT_REG_WR
+        xt_printk("write reg addr\t0x%lx\tval 0x%x\n", offset, value);
+    #endif
+#else
+    return;
+#endif//WRITE_REG
+}
+static inline u32 xrnic_ior32(u8 __iomem *base, off_t offset)
+{
+#ifdef WRITE_REG
+    u32 val;
+    val = ioread32(base + offset);
+    rmb();
+    #ifdef PRINT_REG_WR
+        xt_printk("read reg addr\t0x%lx\tval 0x%x\n", offset, val);
+    #endif
+    return val;
+#else
+    return 0;
+#endif//WRITE_REG
+}
 
 static inline void xrnic_iow(struct xrnic_local *xl, off_t offset, u32 value)
 {

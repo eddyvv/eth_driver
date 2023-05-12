@@ -437,6 +437,18 @@ struct xtic_cdev {
     spinlock_t lock;
 };
 
+struct reg_s {
+    phys_addr_t p_regs;
+    u8 __iomem  *v_regs;
+    u32 len;
+};
+
+struct xib_local {
+    struct xilinx_ib_dev *xib_dev;
+    struct list_head entry;
+    u32 function_mode;
+};
+
 /**
  * struct axienet_local - axienet private per device data
  * @ndev:   Pointer for net_device to which it will be attached.

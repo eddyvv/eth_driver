@@ -10,6 +10,8 @@ ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_4))
 EXTRA_CFLAGS += -DLINUX_5_4
 endif
 
+EXTRA_CFLAGS += -DDEBUG
+
 ccflags-y := -I $(PWD)/inc
 EXTRA_CFLAGS += -g
 

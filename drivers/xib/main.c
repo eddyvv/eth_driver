@@ -1039,6 +1039,7 @@ static int xib_init_instance(struct xib_dev_info *dev_info,
     u32 qpn, rtr_count;
     u64 rtr_addr = 0;
 
+    xib_printfunc("%s start\n", __func__);
     ibdev = (struct xilinx_ib_dev *)ib_alloc_device(xilinx_ib_dev, ib_dev);
 	if(!ibdev) {
 		dev_err(&pdev->dev, "cant alloc ibdev\n");
@@ -1216,14 +1217,20 @@ static int xib_add(struct xib_dev_info *dev_info, struct xilinx_ib_dev *xib)
 {
     struct pci_dev *pdev = dev_info->pdev;
     const struct pci_device_id *id;
+    int err;
 
+    xib_printfunc("%s start\n", __func__);
     dev_dbg(&pdev->dev, "%s : <---------- \n", __func__);
 
     id = pci_match_id(xt_roce_pci_tbl, pdev);
     if(!id)
         return 0;
 
-    return xib_init_instance(dev_info, xib);
+    err = xib_init_instance(dev_info, xib);
+
+    xib_printfunc("%s end\n", __func__);
+
+    return err;
 }
 
 static void xib_remove(struct xilinx_ib_dev *xdev)
@@ -1232,6 +1239,7 @@ static void xib_remove(struct xilinx_ib_dev *xdev)
 	struct xrnic_local *xl;
     struct device *dev = &xdev->pdev->dev;
 
+    xib_printfunc("%s start\n", __func__);
     dev_dbg(dev, "%s : <---------- \n", __func__);
 
     unregister_netdevice_notifier(&cmac_netdev_notifier);
@@ -1256,6 +1264,7 @@ static void xib_remove(struct xilinx_ib_dev *xdev)
 
     xrnic_hw_deinit(xdev);
 
+    xib_printfunc("%s end\n", __func__);
 }
 
 static int xib_dispatch_port_error(struct xilinx_ib_dev *dev)

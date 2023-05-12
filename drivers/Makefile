@@ -36,8 +36,8 @@ clean:
 	@for dir in $(SUBDIRS_ALL); do \
 		make -C $$dir clean; \
 	done
-	sudo rmmod xib xtic_nic
 	sudo rmmod /lib/modules/$(shell uname -r)/kernel/drivers/infiniband/core/ib_core.ko
+	sudo rmmod xib xtic_nic
 ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_15))
 	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
 endif
