@@ -14,8 +14,6 @@ $ cd drivers
 $ make install
 #安装eth
 $ make install_eth
-#安装xib
-$ make install_xib
 ```
 ## 卸载
 ```bash
