@@ -1,10 +1,18 @@
 #ifndef _XIB_IB_VERBS_H_
 #define _XIB_IB_VERBS_H_
 
+
+//#define DEBUG_IPV6
+
 #define SQ_BASE_ALIGN_SZ	32
 #define SQ_BASE_ALIGN(addr)	ALIGN(addr, SQ_BASE_ALIGN_SZ)
 #define SQ_BASE_ALIGNED(addr)	IS_ALIGNED((unsigned long)(addr), \
 				SQ_BASE_ALIGN_SZ)
+
+#define RQ_BASE_ALIGN_SZ	256
+#define RQ_BASE_ALIGN(addr)	ALIGN(addr, RQ_BASE_ALIGN_SZ)
+#define RQ_BASE_ALIGNED(addr)	IS_ALIGNED((unsigned long)(addr), \
+				RQ_BASE_ALIGN_SZ)
 
 #define XIB_MAX_RQE_SGE		8
 #define XIB_MAX_SQE_SGE		8
@@ -31,7 +39,6 @@ enum xib_qp_state {
 	XIB_QP_STATE_SQE
 };
 
-
 struct xib_rqe {
 	u64 wr_id;
 	u32		num_sge;
@@ -56,6 +63,18 @@ struct xib_rq {
 	struct xib_rqe		*rqe_list;
 };
 
+struct xib_pl_buf {
+	void *va;
+	u64 pa;
+	u64 sgl_addr;
+	size_t len;
+};
+
+struct xib_sqd {
+        uint64_t        wr_id;
+        struct xib_sqd *next;
+};
+
 struct xib_sq {
 	u32			sq_cmpl_db_local;
 	u32			send_cq_db_local;
@@ -69,7 +88,6 @@ struct xib_sq {
 	struct xib_pl_buf	*pl_buf_list;
 	u32			max_wr;
 };
-
 
 struct xib_cq {
 	struct ib_cq		ib_cq;
@@ -88,6 +106,15 @@ struct qp_hw_hsk_cfg {
 	void			*sq_ba_va;
 };
 
+#define SEND_INVALIDATE         0x1
+#define SEND_IMMEDIATE          0x2
+#define WRITE_IMMEDIATE         0x3
+
+struct xib_imm_inv {
+	u32	data;
+	u8	type;
+	bool	isvalid;
+};
 
 struct xib_qp {
 	struct ib_qp		ib_qp;
@@ -140,6 +167,66 @@ struct xib_qp {
 	struct xib_imm_inv	*imm_inv_data;
 };
 
+
+
+
+//#define DEBUG_IPV6
+
+#define SQ_BASE_ALIGN_SZ	32
+#define SQ_BASE_ALIGN(addr)	ALIGN(addr, SQ_BASE_ALIGN_SZ)
+#define SQ_BASE_ALIGNED(addr)	IS_ALIGNED((unsigned long)(addr), \
+				SQ_BASE_ALIGN_SZ)
+
+#define RQ_BASE_ALIGN_SZ	256
+#define RQ_BASE_ALIGN(addr)	ALIGN(addr, RQ_BASE_ALIGN_SZ)
+#define RQ_BASE_ALIGNED(addr)	IS_ALIGNED((unsigned long)(addr), \
+				RQ_BASE_ALIGN_SZ)
+
+#define XIB_MAX_RQE_SGE		8
+#define XIB_MAX_SQE_SGE		8
+
+#define SEND_INVALIDATE         0x1
+#define SEND_IMMEDIATE          0x2
+#define WRITE_IMMEDIATE         0x3
+
+struct xib_qp_modify_params {
+	u32			flags;
+#define XIB_MODIFY_QP_SQ_PSN		(1 << 0)
+#define XIB_MODIFY_QP_PKEY		(1 << 1)
+#define XIB_MODIFY_QP_DEST_QP		(1 << 2)
+#define XIB_MODIFY_QP_STATE		(1 << 3)
+#define XIB_MODIFY_QP_AV		(1 << 4)
+#define XIB_MODIFY_QP_DEST_MAC		(1 << 5)
+#define XIB_MODIFY_QP_TIMEOUT		(1 << 6)
+#define XIB_MODIFY_QP_RQ_PSN		(1 << 7)
+	enum xib_qp_state	qp_state;
+	u16			pkey;
+	u32			dest_qp;
+	u16			mtu;
+	u8			traffic_class;
+	u8			hop_limit;
+	u8			dmac[6];
+	u16			udp_src_port;
+
+	u8			retry_cnt;
+	u8			rnr_retry_cnt;
+	u32			rq_psn;
+	u32			sq_psn;
+#ifdef DEBUG_IPV6
+	u8			res1;
+	union {
+		__be32		ip4_daddr;
+		u8		res2[16];
+	};
+#else
+	u8			ip_version;
+	union {
+		__be32		ip4_daddr;
+		u8		ipv6_addr[16];
+	};
+#endif
+};
+
 static inline struct xib_qp *get_xib_qp(struct ib_qp *ibqp)
 {
 	return container_of(ibqp, struct xib_qp, ib_qp);
@@ -150,11 +237,19 @@ static inline struct xib_cq *get_xib_cq(struct ib_cq *ibcq)
 	return container_of(ibcq, struct xib_cq, ib_cq);
 }
 
-struct ib_qp *xib_create_user_qp(struct ib_pd *pd,
-				struct ib_qp_init_attr *init_attr,
-				struct ib_udata *udata);
+static inline void xib_rq_prod_inc(struct xib_rq *rq)
+{
+	rq->prod = (rq->prod + 1) % rq->max_wr;
+}
 
+static inline void xib_rq_cons_inc(struct xib_rq *rq)
+{
+	rq->cons = (rq->cons + 1) % rq->max_wr;
+}
 
-
+static inline void xib_inc_sw_gsi_cons(struct xib_rq *rq)
+{
+	rq->gsi_cons = (rq->gsi_cons + 1) % rq->max_wr;
+}
 
 #endif /* _XIB_IB_VERBS_H_ */

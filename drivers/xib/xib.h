@@ -24,7 +24,7 @@ struct xilinx_ib_dev_attr {
 
 struct xilinx_ib_dev {
 	struct ib_device		ib_dev;
-	struct platform_device		*pdev;
+	struct pci_dev		*pdev;
 	struct net_device		*netdev;
 	u8				active_speed;
 	u8				active_width;
@@ -73,6 +73,7 @@ struct xib_ucontext {
 
 #define UPPER_32_BITS(a) ((a) >> 32U)
 
+
 static inline struct xilinx_ib_dev *get_xilinx_dev(struct ib_device *ibdev)
 {
 	return container_of(ibdev, struct xilinx_ib_dev, ib_dev);
@@ -98,6 +99,9 @@ static inline struct xib_mr *get_xib_mr(struct ib_mr *ibmr)
 	return container_of(ibmr, struct xib_mr, ib_mr);
 }
 
+irqreturn_t xib_irq(int irq, void *ptr);
+
+int xib_bmap_alloc(struct xib_bmap *bmap, u32 max_count, char *name);
 int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num);
 void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num);
 void xib_fatal_handler(unsigned long data);

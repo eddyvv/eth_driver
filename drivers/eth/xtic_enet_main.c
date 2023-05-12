@@ -1391,6 +1391,7 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
     // Set up interrupts
 #if defined(LINUX_5_4)
     dev->irqn[1] = pci_irq_vector(pdev, 1);
+    dev->irqn[2] = pci_irq_vector(pdev, 2);
     for_each_rx_dma_queue(dev, i)
 #elif defined(LINUX_5_15)
     for (i = 0; i < 1; i++)
@@ -1400,8 +1401,10 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
 
         q->tx_irq = dev->irqn[0];
         q->rx_irq = dev->irqn[1];
+
         xt_printk("q->tx_irq = %d\n", q->tx_irq);
         xt_printk("q->rx_irq = %d\n", q->rx_irq);
+        xt_printk("q->xib_irq = %d\n", dev->xib_irq);
     }
     return 0;
 }
@@ -1663,6 +1666,7 @@ static void xtenet_shutdown(struct pci_dev *pdev)
     struct net_device *ndev = pci_get_drvdata(pdev);
 
     xt_printfunc("%s start\n",__func__);
+    // xt_roce_dev_shutdown();
     rtnl_lock();
     netif_device_detach(ndev);
 

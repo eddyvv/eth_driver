@@ -15,6 +15,26 @@
  * SGL memory but not in the user space buffer directly. The fix, that's
  * being made here works only for 32Bit machines */
 
+#define XIB_SGL_FIX 1
+#define IB_QP_CREATE_HW_OFLD IB_QP_CREATE_RESERVED_START
+
+int xib_bmap_alloc(struct xib_bmap *bmap, u32 max_count, char *name)
+{
+	unsigned long *bitmap;
+
+	bitmap = kcalloc(BITS_TO_LONGS(max_count), sizeof(long),
+			GFP_KERNEL);
+	if(!bitmap)
+		return -ENOMEM;
+
+	bmap->bitmap = bitmap;
+	bmap->max_count = max_count;
+	snprintf(bmap->name, XIB_MAX_BMAP_NAME, "%s", name);
+
+	return 0;
+}
+
+
 int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num)
 {
 	*id_num = find_first_zero_bit(bmap->bitmap, bmap->max_count);

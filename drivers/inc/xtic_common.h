@@ -4,7 +4,7 @@
 #define XTIC_DEBUG
 // #define XTIC_DEBUG_FUNC
 
-#define no_printk(fmt, ...)				\
+#define xt_no_printk(fmt, ...)				\
 ({							\
 	if (0)						\
 		printk(fmt, ##__VA_ARGS__);		\
@@ -12,13 +12,13 @@
 })
 
 #ifndef XTIC_DEBUG
-#define xt_printk(fmt, ...) no_printk(fmt, ##__VA_ARGS__)
+#define xt_printk(fmt, ...) xt_no_printk(fmt, ##__VA_ARGS__)
 #else
 #define xt_printk(fmt, ...) printk(fmt, ##__VA_ARGS__)
 #endif /* XTIC_DEBUG */
 
 #ifndef XTIC_DEBUG_FUNC
-#define xt_printfunc(fmt, ...) no_printk(fmt, ##__VA_ARGS__)
+#define xt_printfunc(fmt, ...) xt_no_printk(fmt, ##__VA_ARGS__)
 #else
 #define xt_printfunc(fmt, ...) printk(fmt, ##__VA_ARGS__)
 #endif /* XTIC_DEBUG */
