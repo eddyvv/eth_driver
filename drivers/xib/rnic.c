@@ -293,7 +293,6 @@ struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_i
     struct xrnic_local *xl;
     struct pci_dev *pdev = dev_info->pdev;
 	struct resource *res;
-    // struct axienet_local *lp = pci_get_drvdata(pdev);
 	u32 *db_buf;
 	u64 db_buf_pa;
 

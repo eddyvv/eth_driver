@@ -1201,7 +1201,7 @@ static struct xib_driver xib_driver = {
 static int __init xtic_ib_init(void)
 {
     int status;
-    xt_printk("%s\n", __func__);
+    printk("%s\n", __func__);
 
     status = xt_roce_register_driver(&xib_driver);
     if (status)
@@ -1216,7 +1216,7 @@ err_be_reg:
 
 static void __exit xtic_ib_exit(void)
 {
-    xt_printk("%s\n", __func__);
+    printk("%s\n", __func__);
     xt_roce_unregister_driver(&xib_driver);
 }
 

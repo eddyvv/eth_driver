@@ -1633,6 +1633,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     }
 
     /* 添加roce链表 */
+    // lp->function_mode = XTIC_RDMA_ENABLED;
     xt_roce_dev_add(lp);
 
     return 0;

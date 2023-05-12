@@ -10,6 +10,8 @@ static int _xt_roce_dev_add(struct axienet_local *adapter)
     struct xib_dev_info dev_info;
     struct pci_dev *pdev = adapter->pdev;
     int err;
+
+    xib_printfunc("%s start\n", __func__);
     if(!xib_drv)
         return -ENOMEM;
 
@@ -31,13 +33,15 @@ static int _xt_roce_dev_add(struct axienet_local *adapter)
         dev_err(&pdev->dev, "xib_drv->add fail (err = %d)\n", err);
         return err;
     }
+
+    xib_printfunc("%s start\n", __func__);
     return 0;
 }
 
 void xt_roce_dev_add(struct axienet_local *adapter)
 {
     int ret;
-    xt_printfunc("%s start\n", __func__);
+    xib_printfunc("%s start\n", __func__);
 
     if (xt_roce_supported(adapter)) {
         INIT_LIST_HEAD(&adapter->entry);
@@ -50,7 +54,7 @@ void xt_roce_dev_add(struct axienet_local *adapter)
 				ret);
         mutex_unlock(&xt_adapter_list_lock);
     }
-    xt_printfunc("%s end\n", __func__);
+    xib_printfunc("%s end\n", __func__);
 }
 
 static void _xt_roce_dev_remove(struct axienet_local *adapter)
@@ -87,7 +91,7 @@ int xt_roce_register_driver(struct xib_driver *drv)
     struct axienet_local *lp;
     int ret;
 
-    xt_printfunc("%s start\n", __func__);
+    xib_printfunc("%s start\n", __func__);
     mutex_lock(&xt_adapter_list_lock);
     if (xib_drv) {
 		mutex_unlock(&xt_adapter_list_lock);
@@ -104,7 +108,7 @@ int xt_roce_register_driver(struct xib_driver *drv)
 	}
     mutex_unlock(&xt_adapter_list_lock);
 
-    xt_printfunc("%s end\n", __func__);
+    xib_printfunc("%s end\n", __func__);
     return 0;
 }
 EXPORT_SYMBOL(xt_roce_register_driver);
@@ -115,7 +119,7 @@ void xt_roce_unregister_driver(struct xib_driver *drv)
 {
 	struct axienet_local *lp;
 
-    xt_printfunc("%s start\n", __func__);
+    xib_printfunc("%s start\n", __func__);
 	mutex_lock(&xt_adapter_list_lock);
 	list_for_each_entry(lp, &xt_roce_list, entry) {
 		if (lp->xib_dev)
@@ -124,7 +128,7 @@ void xt_roce_unregister_driver(struct xib_driver *drv)
 	xib_drv = NULL;
 	mutex_unlock(&xt_adapter_list_lock);
 
-    xt_printfunc("%s end\n", __func__);
+    xib_printfunc("%s end\n", __func__);
 }
 EXPORT_SYMBOL(xt_roce_unregister_driver);
 

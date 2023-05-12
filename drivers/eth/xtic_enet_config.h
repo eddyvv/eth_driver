@@ -23,7 +23,7 @@
 
 #define XTIC_PCIE_MAX_IRQ       3
 
-
+#define XTIC_RDMA_ENABLED       0x4
 
 
 

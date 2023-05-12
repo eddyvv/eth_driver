@@ -7,7 +7,7 @@
 
 #define XT_ROCE_ABI_VERSION	1
 
-#define XTIC_RDMA_ENABLED 0x4
+
 
 struct xilinx_ib_dev;
 
