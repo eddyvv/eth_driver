@@ -60,6 +60,11 @@ struct xib_mr {
 	u8			rkey;
 };
 
+struct xib_ah {
+	struct ib_ah ib_ah;
+	struct rdma_ah_init_attr attr;
+};
+
 struct xib_ucontext {
 	struct ib_ucontext	ib_uc;
 	int			pfn;
@@ -79,6 +84,11 @@ static inline struct xib_ucontext *get_xib_ucontext(struct ib_ucontext *ibuc)
 	return container_of(ibuc, struct xib_ucontext, ib_uc);
 }
 
+static inline struct xib_ah *get_xib_ah(struct ib_ah *ibah)
+{
+	return container_of(ibah, struct xib_ah, ib_ah);
+}
+
 static inline struct xib_pd *get_xib_pd(struct ib_pd *ibpd)
 {
 	return container_of(ibpd, struct xib_pd, ib_pd);
@@ -94,7 +104,6 @@ irqreturn_t xib_irq(int irq, void *ptr);
 int xib_bmap_alloc(struct xib_bmap *bmap, u32 max_count, char *name);
 int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num);
 void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num);
-
-
-
+void xib_fatal_handler(unsigned long data);
+void xib_cnp_handler(unsigned long data);
 #endif /* _XIB_H_ */

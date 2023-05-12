@@ -167,6 +167,28 @@ struct xib_qp {
 	struct xib_imm_inv	*imm_inv_data;
 };
 
+
+
+
+//#define DEBUG_IPV6
+
+#define SQ_BASE_ALIGN_SZ	32
+#define SQ_BASE_ALIGN(addr)	ALIGN(addr, SQ_BASE_ALIGN_SZ)
+#define SQ_BASE_ALIGNED(addr)	IS_ALIGNED((unsigned long)(addr), \
+				SQ_BASE_ALIGN_SZ)
+
+#define RQ_BASE_ALIGN_SZ	256
+#define RQ_BASE_ALIGN(addr)	ALIGN(addr, RQ_BASE_ALIGN_SZ)
+#define RQ_BASE_ALIGNED(addr)	IS_ALIGNED((unsigned long)(addr), \
+				RQ_BASE_ALIGN_SZ)
+
+#define XIB_MAX_RQE_SGE		8
+#define XIB_MAX_SQE_SGE		8
+
+#define SEND_INVALIDATE         0x1
+#define SEND_IMMEDIATE          0x2
+#define WRITE_IMMEDIATE         0x3
+
 struct xib_qp_modify_params {
 	u32			flags;
 #define XIB_MODIFY_QP_SQ_PSN		(1 << 0)
@@ -205,6 +227,29 @@ struct xib_qp_modify_params {
 #endif
 };
 
+static inline struct xib_qp *get_xib_qp(struct ib_qp *ibqp)
+{
+	return container_of(ibqp, struct xib_qp, ib_qp);
+}
 
+static inline struct xib_cq *get_xib_cq(struct ib_cq *ibcq)
+{
+	return container_of(ibcq, struct xib_cq, ib_cq);
+}
+
+static inline void xib_rq_prod_inc(struct xib_rq *rq)
+{
+	rq->prod = (rq->prod + 1) % rq->max_wr;
+}
+
+static inline void xib_rq_cons_inc(struct xib_rq *rq)
+{
+	rq->cons = (rq->cons + 1) % rq->max_wr;
+}
+
+static inline void xib_inc_sw_gsi_cons(struct xib_rq *rq)
+{
+	rq->gsi_cons = (rq->gsi_cons + 1) % rq->max_wr;
+}
 
 #endif /* _XIB_IB_VERBS_H_ */
