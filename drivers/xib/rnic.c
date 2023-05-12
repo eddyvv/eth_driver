@@ -191,65 +191,6 @@ irqreturn_t xib_irq(int irq, void *ptr)
 	return IRQ_HANDLED;
 }
 
-/*
-   max qps enabled = 30 
-*/
-
-/* connection type UC */
-
-
-void xrnic_send_wr(struct xib_qp *qp, struct xilinx_ib_dev *xib)
-{
-	struct xrnic_local *xl = xib->xl;
-
-	if (!SQ_BASE_ALIGNED(qp->send_sgl_p))
-		dev_err(&xib->ib_dev.dev, "warning send sgl is not aligned \n");
-
-	qp->sq.sq_cmpl_db_local++;
-	/* increment the SQ PI Doorbell */
-	xrnic_iow(xl, XRNIC_SQ_PROD_IDX(qp->hw_qpn), qp->sq.sq_cmpl_db_local);
-	wmb();
-	if (qp->sq.sq_cmpl_db_local == qp->sq.max_wr) {
-		qp->sq.sq_cmpl_db_local = 0;
-	}
-	qp->send_sgl_busy = false;
-}
-
-void config_raw_ip(struct xrnic_local *xl, u32 base, u32 *ip, bool is_ipv6)
-{
-	u32 val = 0, i;
-
-	if (!is_ipv6) {
-		val = cpu_to_be32(*ip);
-		xrnic_iow(xl, base, val);
-	} else {
-		for (i = 0; i < 4; i++) {
-			val = cpu_to_be32(ip[i]);
-			xrnic_iow(xl, base + (3 - i) * 4, val);
-		}
-	}
-}
-
-void get_raw_ip(struct xrnic_local *xl, u32 base, u32 *addr, bool is_ipv6)
-{
-	u32 val, i;
-
-	if (!xl || !addr)
-		return;
-
-	if (!is_ipv6) {
-		val = xrnic_ior(xl, base);
-		val = cpu_to_be32(val);
-		*addr = val;
-	} else {
-		for (i = 0; i < 4; i++) {
-			val  = xrnic_ior(xl, base + (3 - i) * 4);
-			val = cpu_to_be32(val);
-			addr[i] = val;
-		}
-	}
-}
-
 int xrnic_qp_under_recovery(struct xilinx_ib_dev *xib, int hw_qpn)
 {
 	int val = 0;
@@ -275,7 +216,7 @@ u64 xrnic_get_sq_db_addr(struct xrnic_local *xl, int hw_qpn)
 }
 EXPORT_SYMBOL(xrnic_get_sq_db_addr);
 /*
- * 
+ *
  */
 u64 xrnic_get_rq_db_addr(struct xrnic_local *xl, int hw_qpn)
 {
@@ -284,7 +225,7 @@ u64 xrnic_get_rq_db_addr(struct xrnic_local *xl, int hw_qpn)
 }
 
 /*
-   max qps enabled = 30 
+   max qps enabled = 30
 */
 
 /* connection type UC */
@@ -307,20 +248,6 @@ void xrnic_send_wr(struct xib_qp *qp, struct xilinx_ib_dev *xib)
 	qp->send_sgl_busy = false;
 }
 
-void config_raw_ip(struct xrnic_local *xl, u32 base, u32 *ip, bool is_ipv6)
-{
-	u32 val = 0, i;
-
-	if (!is_ipv6) {
-		val = cpu_to_be32(*ip);
-		xrnic_iow(xl, base, val);
-	} else {
-		for (i = 0; i < 4; i++) {
-			val = cpu_to_be32(ip[i]);
-			xrnic_iow(xl, base + (3 - i) * 4, val);
-		}
-	}
-}
 
 void get_raw_ip(struct xrnic_local *xl, u32 base, u32 *addr, bool is_ipv6)
 {
@@ -340,39 +267,6 @@ void get_raw_ip(struct xrnic_local *xl, u32 base, u32 *addr, bool is_ipv6)
 			addr[i] = val;
 		}
 	}
-}
-
-int xrnic_qp_under_recovery(struct xilinx_ib_dev *xib, int hw_qpn)
-{
-	int val = 0;
-
-	/* Disable the QP */
-	val = xrnic_ior(xib->xl, XRNIC_QP_CONF(hw_qpn));
-	val &= ~(QP_ENABLE);
-	xrnic_iow(xib->xl, XRNIC_QP_CONF(hw_qpn), val);
-
-	/* put QP under recovery */
-	xrnic_iow(xib->xl, XRNIC_QP_CONF(hw_qpn), val);
-	val |= QP_UNDER_RECOVERY;
-	xrnic_iow(xib->xl, XRNIC_QP_CONF(hw_qpn), val);
-
-	return 0;
-}
-
-u64 xrnic_get_sq_db_addr(struct xrnic_local *xl, int hw_qpn)
-{
-	/* reset the counter */
-	*(xl->qp1_sq_db_v + hw_qpn) = 0;
-	return (xl->qp1_sq_db_p + (hw_qpn * 4));
-}
-EXPORT_SYMBOL(xrnic_get_sq_db_addr);
-/*
- * 
- */
-u64 xrnic_get_rq_db_addr(struct xrnic_local *xl, int hw_qpn)
-{
-	*(xl->qp1_rq_db_v + hw_qpn) = 0;
-	return (xl->qp1_rq_db_p + (hw_qpn * 4));
 }
 
 int xrnic_reg_mr(struct xilinx_ib_dev *xib, u64 va, u64 len,
@@ -471,7 +365,7 @@ int send_out_cnp(struct xib_qp *qp)
                 memcpy(&qp1->qp1_hdr.ip4.saddr, (void *)&data, 4);
 		data = xrnic_ior(xib->xl, XRNIC_IP_DEST_ADDR_1(qp->hw_qpn));
 		config_raw_ip(xib->xl, XRNIC_IP_DEST_ADDR_1(qp->hw_qpn),
-			&data, 0); 
+			&data, 0);
 		data = cpu_to_be32(data);
                 memcpy(&qp1->qp1_hdr.ip4.daddr, (void *)&data, 4);
                 qp1->qp1_hdr.ip4.check = ib_ud_ip4_csum(&qp->qp1_hdr);
@@ -485,7 +379,7 @@ int send_out_cnp(struct xib_qp *qp)
 			(u32 *)&qp->qp1_hdr.grh.destination_gid, qp->is_ipv6);
 		get_raw_ip(xib->xl, data, (u32 *)&qp->qp1_hdr.grh.source_gid, qp->is_ipv6);
 		config_raw_ip(xib->xl, XRNIC_IP_DEST_ADDR_1(qp->hw_qpn),
-			(u32 *)qp->qp1_hdr.grh.source_gid.raw, 1); 
+			(u32 *)qp->qp1_hdr.grh.source_gid.raw, 1);
 	}
 
         if (is_udp) {
