@@ -380,7 +380,7 @@ static int xtenet_open(struct net_device *ndev)
     netif_tx_start_all_queues(ndev);
     xt_printfunc("%s end\n",__func__);
     return 0;
-
+    
 err_eth_irq:
     while (i--) {
         free_irq(q->rx_irq, ndev);

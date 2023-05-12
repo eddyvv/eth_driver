@@ -23,7 +23,7 @@
 #include <rdma/ib_user_verbs.h>
 #include <rdma/ib_cache.h>
 #include <rdma/ib_umem.h>
-#include <rdma/ib_verbs.h>
+
 #include <rdma/uverbs_ioctl.h>
 #include <net/addrconf.h>
 #include <linux/of_address.h>
@@ -41,6 +41,11 @@ unsigned int app_qp_cnt = 10;
 unsigned int app_qp_depth = 16;
 
 unsigned int max_rq_sge = 16;
+
+static int check_qp_depths(unsigned int qp_depth)
+{
+	return (qp_depth && (!(qp_depth & (qp_depth-1)))) && (qp_depth >=2);
+}
 
 int xib_alloc_ucontext(struct ib_ucontext *uctx, struct ib_udata *udata)
 {
@@ -243,6 +248,26 @@ static enum rdma_link_layer xib_get_link_layer(struct ib_device *device,
 	return IB_LINK_LAYER_ETHERNET;
 }
 
+/* Device */
+/*u8 port 编译不通过 更改为u32,函数定义在netfiliter/x_tables.h*/
+struct net_device *xib_get_netdev(struct ib_device *ibdev, u32 port_num)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibdev);
+	struct net_device *netdev = NULL;
+
+	dev_dbg(&ibdev->dev, "%s : <---------- \n", __func__);
+
+	rcu_read_lock();
+	if (xib)
+		netdev = xib->netdev;
+	/* dev_put shall be called by whoever calls get_netdev */
+	if (netdev)
+		dev_hold(netdev);
+
+	rcu_read_unlock();
+	return netdev;
+}
+
 static int xib_query_device(struct ib_device *ibdev,
 				struct ib_device_attr *props,
 				struct ib_udata *uhw)
@@ -287,6 +312,56 @@ static int xib_query_device(struct ib_device *ibdev,
 	props->max_qp_init_rd_atom = 0x10;
 
 	return 0;
+}
+
+/*不使用umm.c，删除IB_QPT_GSI、xib_create_kernel_qp*/
+struct ib_qp *xib_create_qp(struct ib_pd *pd,
+				struct ib_qp_init_attr *init_attr,
+				struct ib_udata *udata)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(pd->device);
+	struct xrnic_local *xl = xib->xl;
+	struct ib_qp *ibqp;
+	struct xib_qp *qp;
+	u32 val;
+
+	dev_dbg(&pd->device->dev, "%s : <---------- \n", __func__);
+
+	if (init_attr->srq)
+		return ERR_PTR(-EINVAL);
+
+	switch (init_attr->qp_type) {
+	//case IB_QPT_GSI:
+		//return xib_gsi_create_qp(pd, init_attr); 
+	case IB_QPT_RC:
+	if (!check_qp_depths(init_attr->cap.max_send_wr)) {
+		dev_err(&pd->device->dev, "qp depth should be a power of 2\n");
+		return ERR_PTR(-EINVAL);
+	}
+	if (!check_qp_depths(init_attr->cap.max_recv_wr)) {
+		dev_err(&pd->device->dev, "qp depth should be a power of 2\n");
+		return ERR_PTR(-EINVAL);
+	}
+	if (udata) 
+		//ibqp = xib_create_user_qp(pd, init_attr, udata);
+		// else
+		// 	ibqp = xib_create_kernel_qp(pd, init_attr);
+/* 
+ * AR# 75247: Initialize STAT_QPN.curr_rnr_retry_cnt and curr_retry_cnt
+ */
+		qp = get_xib_qp(ibqp);
+		val = xrnic_ior(xl, XRNIC_STAT_QP(qp->hw_qpn));
+		if ((val >> 24) != 0x77) {
+			xrnic_iow(xl, XRNIC_STAT_QP(qp->hw_qpn), val | (0x77 << 24));
+			wmb();
+		}
+		return ibqp;
+	default:
+		 	dev_err(&pd->device->dev, "unsupported qp type %d\n",
+		 		    init_attr->qp_type);
+			/* Don't support raw QPs */
+		 	return ERR_PTR(-EINVAL);
+		}
 }
 
 /*u8 port 编译不通过 更改为u32,函数定义在netfiliter/x_tables.h*/
@@ -369,6 +444,25 @@ int xib_del_gid(const struct ib_gid_attr *attr, void **context)
 	return 0;
 }
 
+int xib_create_ah(struct ib_ah *ibah, struct rdma_ah_init_attr *ah_attr,
+				struct ib_udata *udata)
+{
+	struct xib_ah *ah = get_xib_ah(ibah);
+
+	ah->attr = *ah_attr;
+	return 0;
+}
+
+
+int xib_destroy_ah(struct ib_ah *ib_ah, uint32_t flags)
+{
+	struct xib_ah *ah = get_xib_ah(ib_ah);
+
+	dev_dbg(&ib_ah->device->dev, "%s : <---------- \n", __func__);
+	return 0;
+
+}
+
 
 static const struct ib_device_ops xib_dev_ops = {
     .owner	= THIS_MODULE,
@@ -389,6 +483,12 @@ static const struct ib_device_ops xib_dev_ops = {
 	.map_mr_sg	= xib_map_mr_sge,
 	.dealloc_pd	= xib_dealloc_pd,	
 	.get_link_layer	= xib_get_link_layer,
+	.get_netdev	= xib_get_netdev,
+
+	.create_ah	= xib_create_ah,	
+	.destroy_ah	= xib_destroy_ah,
+	//.create_qp	= xib_create_qp,
+
 };
 
 
