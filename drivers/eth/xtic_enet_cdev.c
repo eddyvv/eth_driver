@@ -154,13 +154,13 @@ static long xtic_cdev_ioctl(struct file *flip, unsigned int cmd, unsigned long a
 
     switch(cmd) {
         case XILINX_IOC_READ_REG:
-                ret = xtic_ioctrl_read(arg, lp->regs);
+                ret = xtic_ioctrl_read(arg, lp->bar0.v_regs);
             break;
         case XILINX_IOC_WRITE_REG:
-                ret = xtic_ioctrl_write(arg, lp->regs);
+                ret = xtic_ioctrl_write(arg, lp->bar0.v_regs);
             break;
         case XILINX_IOC_READ_REG_ALL:
-                ret = xtic_ioctrl_read_all(arg, lp->regs);
+                ret = xtic_ioctrl_read_all(arg, lp->bar0.v_regs);
             break;
         default:
             break;

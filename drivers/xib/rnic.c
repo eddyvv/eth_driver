@@ -567,13 +567,13 @@ struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_i
     xl->pdev = pdev;
 	xl->retry_buf_va = NULL;
 	xl->in_pkt_err_va = NULL;
-    xl->reg_base = dev_info->xib_regAddr;
-    /* store pa of reg for db access */
-	// xl->db_pa = (res->start + 0x20000);
-	// xl->db_size = (res->end - (res->start + 0x20000) + 1);
+    xl->reg_base = dev_info->xib.v_regs;
 
-	dev_dbg(&pdev->dev, "xl->reg_base: %hhn\n", xl->reg_base);
-    xib_printfunc("%s %d end\n", __func__, __LINE__);
+    /* store pa of reg for db access */
+	xl->db_pa = (dev_info->xib.p_regs + 0x20000);
+	xl->db_size = (dev_info->xib.len - 0x20000);
+
+	dev_dbg(&pdev->dev, "xl->reg_base: 0x%x\n", (unsigned int)(long)xl->reg_base);
 	xl->irq = dev_info->xib_irq;
 	if (xl->irq <= 0) {
 		dev_err(&pdev->dev, "ernic dev get of irq failed!\n");

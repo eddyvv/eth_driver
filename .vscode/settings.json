@@ -11,6 +11,7 @@
         "xt_roce.h": "c",
         "xib.h": "c",
         "rnic.h": "c",
-        "interrupt.h": "c"
+        "interrupt.h": "c",
+        "xtic_enet_config.h": "c"
     }
 }

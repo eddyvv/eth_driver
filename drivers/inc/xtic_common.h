@@ -50,5 +50,10 @@
 #define DEBUG
 #endif
 
+struct reg_s {
+    phys_addr_t p_regs;
+    u8 __iomem  *v_regs;
+    u32 len;
+};
 
 #endif // !XTIC_COMMON_H_

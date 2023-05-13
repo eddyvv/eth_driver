@@ -933,18 +933,20 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     dev->pci_status = XTNET_PCI_STATUS_ENABLED;
 
     /* 获取bar0地址 */
-    dev->bar_addr = pci_resource_start(pdev, 0);
-    dev->axidma_addr = dev->bar_addr + AXIDMA_1_BASE;
-    dev->xdma_addr = dev->bar_addr + XDMA0_CTRL_BASE;
-    dev->xxv_addr = dev->bar_addr + XXV_ETHERNET_0_BASE;
-    dev->xib_addr = dev->bar_addr + XIB_BASE;
-    xt_printk("bar0 \t\t= 0x%llx\n", dev->bar_addr);
-    xt_printk("dev->axidma_addr = 0x%llx\n", dev->axidma_addr);
-    xt_printk("dev->xdma_addr \t= 0x%llx\n", dev->xdma_addr);
-    xt_printk("dev->xxv_addr \t= 0x%llx\n", dev->xxv_addr);
+    dev->bar0.p_regs = pci_resource_start(pdev, 0);
+    dev->bar0.len = pci_resource_len(pdev, 0);
+    dev->axidma.p_regs = dev->bar0.p_regs + AXIDMA_1_BASE;
+    dev->xdma.p_regs = dev->bar0.p_regs + XDMA0_CTRL_BASE;
+    dev->xxv.p_regs = dev->bar0.p_regs + XXV_ETHERNET_0_BASE;
+    dev->xib.p_regs = dev->bar0.p_regs + XIB_BASE;
 
-    dev->bar_size = pci_resource_len(pdev, 0);
-    xt_printk("bar0 size \t= 0x%x\n", dev->bar_size);
+    xt_printk("dev->bar.p_regs \t\t= 0x%llx\n", dev->bar0.p_regs);
+    xt_printk("dev->axidma.p_regs = 0x%llx\n", dev->axidma.p_regs);
+    xt_printk("dev->xdma.p_regs \t= 0x%llx\n", dev->xdma.p_regs);
+    xt_printk("dev->xxv.p_regs \t= 0x%llx\n", dev->xxv.p_regs);
+    xt_printk("dev->xib.p_regs \t= 0x%llx\n", dev->xib.p_regs);
+
+    xt_printk("bar0 size \t= 0x%x\n", dev->bar0.len);
     /* 请求PCI资源 */
     err = request_bar(pdev);
     if (err) {
@@ -964,16 +966,18 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
         goto err_dma;
     }
     /* 映射bar0至虚拟地址空间 */
-    dev->regs = pci_ioremap_bar(pdev, BAR_0);
-    dev->axidma_regs = dev->regs + AXIDMA_1_BASE;
-    dev->xdma_regs = dev->regs + XDMA0_CTRL_BASE;
-    dev->xxv_regs = dev->regs + XXV_ETHERNET_0_BASE;
-    dev->xib_regs = dev->regs + XIB_BASE;
-    xt_printk("dev->regs \t= 0x%x\n",(unsigned int)(long)dev->regs);
-    xt_printk("dev->axidma_regs = 0x%x\n",(unsigned int)(long)dev->axidma_regs);
-    xt_printk("dev->xdma_regs \t= 0x%x\n",(unsigned int)(long)dev->xdma_regs);
-    xt_printk("dev->xxv_regs \t= 0x%x\n",(unsigned int)(long)dev->xxv_regs);
-    if (!dev->regs){
+    dev->bar0.v_regs = pci_ioremap_bar(pdev, BAR_0);
+    dev->axidma.v_regs = dev->bar0.v_regs + AXIDMA_1_BASE;
+    dev->xdma.v_regs = dev->bar0.v_regs + XDMA0_CTRL_BASE;
+    dev->xxv.v_regs = dev->bar0.v_regs + XXV_ETHERNET_0_BASE;
+    dev->xib.v_regs = dev->bar0.v_regs + XIB_BASE;
+
+    xt_printk("dev->bar0.v_regs \t= 0x%x\n",(unsigned int)(long)dev->bar0.v_regs);
+    xt_printk("dev->axidma.v_regs = 0x%x\n",(unsigned int)(long)dev->axidma.v_regs);
+    xt_printk("dev->xdma.v_regs \t= 0x%x\n",(unsigned int)(long)dev->xdma.v_regs);
+    xt_printk("dev->xxv.v_regs \t= 0x%x\n",(unsigned int)(long)dev->xxv.v_regs);
+    xt_printk("dev->xib.v_regs \t= 0x%x\n",(unsigned int)(long)dev->xib.v_regs);
+    if (!dev->bar0.v_regs){
         xtenet_core_err(dev, "Failed pci_ioremap_bar\n");
         goto err_dma;
     }
@@ -998,7 +1002,7 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
 xt_err_read_reg:
 xt_err_ioremap:
 err_dma:
-    iounmap(dev->regs);
+    iounmap(dev->bar0.v_regs);
     pci_clear_master(dev->pdev);
     release_bar(dev->pdev);
 xt_err_disable:
@@ -1401,7 +1405,8 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
 
         q->tx_irq = dev->irqn[0];
         q->rx_irq = dev->irqn[1];
-
+        // dev->xib_irq = dev->irqn[2];
+        dev->xib_irq = dev->irqn[0];
         xt_printk("q->tx_irq = %d\n", q->tx_irq);
         xt_printk("q->rx_irq = %d\n", q->rx_irq);
         xt_printk("q->xib_irq = %d\n", dev->xib_irq);
@@ -1442,7 +1447,7 @@ static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
     /* TODO handle error ret */
     for_each_rx_dma_queue(lp, i) {
         q = lp->dq[i];
-        q->dma_regs = lp->axidma_regs;
+        q->dma_regs = lp->axidma.v_regs;
         q->eth_hasdre = true;
         lp->dma_mask = XAE_DMA_MASK_MIN;
     }
@@ -1654,7 +1659,7 @@ static void xtenet_remove(struct pci_dev *pdev)
     xt_roce_dev_remove(lp);
 
     unregister_netdev(lp->ndev);
-    iounmap(lp->regs);
+    iounmap(lp->bar0.v_regs);
     xtenet_pci_close(lp);
     xtnet_irq_deinit_pcie(lp);
     free_netdev(lp->ndev);

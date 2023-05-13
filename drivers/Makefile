@@ -23,7 +23,6 @@ install:
 ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_15))
 	sudo rmmod e1000
 endif
-	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/infiniband/core/ib_core.ko
 	sudo insmod ./eth/xtic_nic.ko
 	sudo insmod ./xib/xib.ko
 
@@ -32,11 +31,13 @@ install_e1000:
 	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
 endif
 
+install_ib_core:
+	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/infiniband/core/ib_core.ko
+
 clean:
 	@for dir in $(SUBDIRS_ALL); do \
 		make -C $$dir clean; \
 	done
-	sudo rmmod /lib/modules/$(shell uname -r)/kernel/drivers/infiniband/core/ib_core.ko
 	sudo rmmod xib xtic_nic
 ifeq ($(CURRENT_KERNEL_VERSION),$(KERNEL_VERSION_5_15))
 	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/net/ethernet/intel/e1000/e1000.ko

@@ -21,7 +21,7 @@ static int _xt_roce_dev_add(struct axienet_local *adapter)
     }
 
     dev_info.pdev = adapter->pdev;
-    dev_info.xib_regAddr = adapter->xib_regs;
+    dev_info.xib = adapter->xib;
     dev_info.xib_irq = adapter->xib_irq;
     dev_info.netdev = adapter->ndev;
     dev_info.ethdev = adapter;

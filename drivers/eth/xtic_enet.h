@@ -437,12 +437,6 @@ struct xtic_cdev {
     spinlock_t lock;
 };
 
-struct reg_s {
-    phys_addr_t p_regs;
-    u8 __iomem  *v_regs;
-    u32 len;
-};
-
 struct xib_local {
     struct xilinx_ib_dev *xib_dev;
     struct list_head entry;
@@ -558,21 +552,13 @@ struct axienet_local {
 
     int csum_offload_on_tx_path;
     int csum_offload_on_rx_path;
-    /* bar地址 */
-    phys_addr_t     bar_addr;
-    phys_addr_t     axidma_addr;
-    phys_addr_t     xdma_addr;
-    phys_addr_t     xxv_addr;
-    phys_addr_t     xib_addr;
 
-    /* 映射后的bar地址 */
-    u8 __iomem      *regs;
-    u8 __iomem      *axidma_regs;
-    u8 __iomem      *xdma_regs;
-    u8 __iomem      *xxv_regs;
-    u8 __iomem      *xib_regs;
-    /* 长度 */
-    int         bar_size;
+    struct reg_s bar0;
+    struct reg_s axidma;
+    struct reg_s xdma;
+    struct reg_s xxv;
+    struct reg_s xib;
+
     /* xtenet设备状态 */
     enum xtenet_device_state     state;
     /* 绑定的PCI设备 */
@@ -696,7 +682,7 @@ static inline void axienet_xxv_iow(struct axienet_local *lp, off_t offset,
                    u32 value)
 {
 #ifdef WRITE_REG
-    iowrite32(value, lp->xxv_regs + offset);
+    iowrite32(value, lp->xxv.v_regs + offset);
     #ifdef PRINT_REG_WR
         xt_printk("write xxv reg addr\t0x%lx\tval 0x%x\n", offset, value);
     #endif
@@ -712,7 +698,7 @@ static inline u32 axienet_xxv_ior(struct axienet_local *lp, off_t offset)
 {
 #ifdef WRITE_REG
     int val;
-    val = ioread32(lp->xxv_regs + offset);
+    val = ioread32(lp->xxv.v_regs + offset);
     #ifdef PRINT_REG_WR
         xt_printk("read xxv reg addr\t0x%lx\tval 0x%x\n", offset, val);
     #endif
@@ -729,7 +715,7 @@ static inline void axienet_iow(struct axienet_local *lp, off_t offset,
                    u32 value)
 {
 #ifdef WRITE_REG
-    iowrite32(value, lp->xxv_regs + offset);
+    iowrite32(value, lp->xxv.v_regs + offset);
     #ifdef PRINT_REG_WR
         xt_printk("write reg addr\t0x%lx\tval 0x%x\n", offset, value);
     #endif
@@ -745,7 +731,7 @@ static inline u32 axienet_ior(struct axienet_local *lp, off_t offset)
 {
 #ifdef WRITE_REG
     int val;
-    val = ioread32(lp->xxv_regs + offset);
+    val = ioread32(lp->xxv.v_regs + offset);
     #ifdef PRINT_REG_WR
         xt_printk("read reg addr\t0x%lx\tval 0x%x\n", offset, val);
     #endif

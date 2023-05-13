@@ -4,7 +4,7 @@
 
 #include <linux/pci.h>
 #include <linux/netdevice.h>
-
+#include "xtic_common.h"
 #define XT_ROCE_ABI_VERSION	1
 
 
@@ -12,8 +12,9 @@
 struct xilinx_ib_dev;
 
 struct xib_dev_info {
-    u8 __iomem *xib_regAddr;
-    u32 xib_regLen;
+    // u8 __iomem *xib_regAddr;
+    // u32 xib_regLen;
+    struct reg_s xib;
     int xib_irq;
     u8 mac_addr[ETH_ALEN];
     struct pci_dev *pdev;
