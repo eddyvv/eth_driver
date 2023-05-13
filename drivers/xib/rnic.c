@@ -489,7 +489,6 @@ dma_addr_t xrnic_buf_alloc(struct xrnic_local *xl, u32 size, u32 count)
 	void *buf;
     dma_addr_t addr;
 
-    xib_printfunc("%s start\n", __func__);
 	order = get_order(PAGE_ALIGN(size * count));
 	buf = (void *)__get_free_pages(GFP_KERNEL, order);
 	if (!buf) {
@@ -507,7 +506,7 @@ dma_addr_t xrnic_buf_alloc(struct xrnic_local *xl, u32 size, u32 count)
 				:%d\n", order);
 		return 0;
 	}
-    xib_printfunc("%s end\n", __func__);
+
 	return addr;
 }
 
@@ -546,6 +545,7 @@ static void xrnic_set_bufs(struct pci_dev *pdev, struct xrnic_local *xl)
 	wmb();
 	xrnic_iow(xl, XRNIC_RSP_ERR_BUF_DEPTH, (XRNIC_RESP_ERR_BUF_DEPTH << 16 | XRNIC_RESP_ERR_BUF_SIZE));
 	wmb();
+
     xib_printfunc("%s end\n", __func__);
 }
 
@@ -586,7 +586,8 @@ struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_i
     /* enable all interrupts */
 	xrnic_iow(xl, XRNIC_INT_EN, 0xff);
 
-    // db_buf = ;
+    db_buf = dma_alloc_coherent(&pdev->dev, PAGE_SIZE, (dma_addr_t *)&db_buf_pa,
+			GFP_KERNEL);
     if (!db_buf) {
 		printk("failed to alloc db mem %s:%d\n",
 							__func__, __LINE__);

@@ -1144,19 +1144,19 @@ static int xib_init_instance(struct xib_dev_info *dev_info,
 
     xib_set_dev_caps(&ibdev->ib_dev);
     ib_set_device_ops(&ibdev->ib_dev, &xib_dev_ops);
-
+    xib_printfunc("%s %d\n", __func__, __LINE__);
     err = ib_register_device(&ibdev->ib_dev, ibdev->ib_dev.name, &pdev->dev);
 	if (err) {
 		dev_err(&pdev->dev, "failed to regiser xib device\n");
 		goto err_1;
 	}
-
+    xib_printfunc("%s %d\n", __func__, __LINE__);
     /* set dma mask */
 	/* TODO set relevant mask for 64bit and 32 bit */
 	err = dma_set_mask_and_coherent(&ibdev->pdev->dev, DMA_BIT_MASK(32));
 	if (err != 0)
 		dev_err(&pdev->dev, "unable to set dma mask\n");
-
+    xib_printfunc("%s %d\n", __func__, __LINE__);
 	/* the phy attached to 40G is not giving out active speed or width
 	 * since we are using 40G in the design default to 40G */ /*TODO */
 	#if 0
@@ -1165,13 +1165,13 @@ static int xib_init_instance(struct xib_dev_info *dev_info,
 	#endif
 	ibdev->active_speed = IB_SPEED_FDR10;
 	ibdev->active_width = IB_WIDTH_4X;
-
+    xib_printfunc("%s %d\n", __func__, __LINE__);
     /* set the mac address */
 	xrnic_set_mac(xl, netdev->dev_addr);
 
     err = set_ip_address(netdev, 1);
 	err = set_ip_address(netdev, 0);
-
+    xib_printfunc("%s %d\n", __func__, __LINE__);
     /* pre-reserve QP1
 	 * there is no QP0 in ernic HW
 	 */
@@ -1186,7 +1186,7 @@ static int xib_init_instance(struct xib_dev_info *dev_info,
 		dev_err(&pdev->dev, "Failed to create PFC sysfs entry\n");
 		goto err_2;
 	}
-
+    xib_printfunc("%s %d\n", __func__, __LINE__);
     /* register irq */
 	err = request_irq(xl->irq, xib_irq, IRQF_SHARED, "xrnic_intr0",
 			(void *)ibdev);

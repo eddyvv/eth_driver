@@ -37,12 +37,13 @@ int xib_bmap_alloc(struct xib_bmap *bmap, u32 max_count, char *name)
 
 int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num)
 {
+    xib_printfunc("%s start\n", __func__);
 	*id_num = find_first_zero_bit(bmap->bitmap, bmap->max_count);
 	if (*id_num >= bmap->max_count)
 		return -EINVAL;
 
 	__set_bit(*id_num, bmap->bitmap);
-
+    xib_printfunc("%s start\n", __func__);
 	return 0;
 }
 
