@@ -213,7 +213,7 @@ static void xtnet_device_reset(struct net_device *ndev)
          * is functioning normally or not.
          */
 #if defined(LINUX_5_4)
-        err = readl_poll_timeout(lp->xxv_regs + XXV_STATRX_BLKLCK_OFFSET,
+        err = readl_poll_timeout(lp->xxv.v_regs + XXV_STATRX_BLKLCK_OFFSET,
                      val, (val & XXV_RX_BLKLCK_MASK),
                      10, DELAY_OF_ONE_MILLISEC);
 #endif
@@ -353,7 +353,7 @@ static int xtenet_open(struct net_device *ndev)
          * USXGMII initialization.
          */
 #if defined(LINUX_5_4)
-        err = readl_poll_timeout(lp->xxv_regs + XXV_STATRX_BLKLCK_OFFSET,
+        err = readl_poll_timeout(lp->xxv.v_regs + XXV_STATRX_BLKLCK_OFFSET,
                      reg, (reg & XXV_RX_BLKLCK_MASK),
                      100, DELAY_OF_ONE_MILLISEC);
 #endif
@@ -364,7 +364,7 @@ static int xtenet_open(struct net_device *ndev)
             goto err_eth_irq;
         }
 #if defined(LINUX_5_4)
-        err = readl_poll_timeout(lp->xxv_regs + XXV_USXGMII_AN_STS_OFFSET,
+        err = readl_poll_timeout(lp->xxv.v_regs + XXV_USXGMII_AN_STS_OFFSET,
                      reg, (reg & USXGMII_AN_STS_COMP_MASK),
                      1000000, DELAY_OF_ONE_MILLISEC);
 #endif
