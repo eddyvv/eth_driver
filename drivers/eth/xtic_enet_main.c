@@ -940,13 +940,12 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     dev->xxv.p_regs = dev->bar0.p_regs + XXV_ETHERNET_0_BASE;
     dev->xib.p_regs = dev->bar0.p_regs + XIB_BASE;
 
-    xt_printk("dev->bar.p_regs \t\t= 0x%llx\n", dev->bar0.p_regs);
-    xt_printk("dev->axidma.p_regs = 0x%llx\n", dev->axidma.p_regs);
+    xt_printk("dev->bar0.p_regs \t= 0x%llx\n", dev->bar0.p_regs);
+    xt_printk("dev->axidma.p_regs \t= 0x%llx\n", dev->axidma.p_regs);
     xt_printk("dev->xdma.p_regs \t= 0x%llx\n", dev->xdma.p_regs);
-    xt_printk("dev->xxv.p_regs \t= 0x%llx\n", dev->xxv.p_regs);
-    xt_printk("dev->xib.p_regs \t= 0x%llx\n", dev->xib.p_regs);
-
-    xt_printk("bar0 size \t= 0x%x\n", dev->bar0.len);
+    xt_printk("dev->xxv.p_regs \t\t= 0x%llx\n", dev->xxv.p_regs);
+    xt_printk("dev->xib.p_regs \t\t= 0x%llx\n", dev->xib.p_regs);
+    xt_printk("bar0 size \t\t= 0x%x\n", dev->bar0.len);
     /* 请求PCI资源 */
     err = request_bar(pdev);
     if (err) {
@@ -973,10 +972,10 @@ static int xtenet_pci_init(struct axienet_local *dev, struct pci_dev *pdev,
     dev->xib.v_regs = dev->bar0.v_regs + XIB_BASE;
 
     xt_printk("dev->bar0.v_regs \t= 0x%x\n",(unsigned int)(long)dev->bar0.v_regs);
-    xt_printk("dev->axidma.v_regs = 0x%x\n",(unsigned int)(long)dev->axidma.v_regs);
+    xt_printk("dev->axidma.v_regs \t= 0x%x\n",(unsigned int)(long)dev->axidma.v_regs);
     xt_printk("dev->xdma.v_regs \t= 0x%x\n",(unsigned int)(long)dev->xdma.v_regs);
-    xt_printk("dev->xxv.v_regs \t= 0x%x\n",(unsigned int)(long)dev->xxv.v_regs);
-    xt_printk("dev->xib.v_regs \t= 0x%x\n",(unsigned int)(long)dev->xib.v_regs);
+    xt_printk("dev->xxv.v_regs \t\t= 0x%x\n",(unsigned int)(long)dev->xxv.v_regs);
+    xt_printk("dev->xib.v_regs \t\t= 0x%x\n",(unsigned int)(long)dev->xib.v_regs);
     if (!dev->bar0.v_regs){
         xtenet_core_err(dev, "Failed pci_ioremap_bar\n");
         goto err_dma;
