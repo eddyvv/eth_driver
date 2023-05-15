@@ -20,3 +20,10 @@ $ make install_eth
 $ cd drivers
 $ make clean
 ```
+
+## 编译内核某个模块
+```bash
+make -C . M=./drivers/infiniband/core modules
+
+sudo cp ./drivers/infiniband/core/*.ko /lib/modules/5.15.0/kernel/drivers/infiniband/core/
+```
