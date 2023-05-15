@@ -974,6 +974,763 @@ int xib_destroy_ah(struct ib_ah *ib_ah, uint32_t flags)
 
 }
 
+int get_rq_pending_cnt(struct ib_qp *ibqp)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	struct xib_qp *qp = get_xib_qp(ibqp);
+	struct xrnic_local *xl = xib->xl;
+	int ret;
+	u32 rq_ci, rq_pi;
+
+	rq_pi = *(volatile u32 *)(xl->qp1_rq_db_v + qp->hw_qpn);
+	rq_ci = xrnic_ior(xl, XRNIC_RQ_CONS_IDX(qp->hw_qpn));
+
+	if (rq_pi == rq_ci)
+		ret = 0;
+	else if (rq_pi > rq_ci)
+		ret = (rq_pi - rq_ci);
+	else
+		ret = (qp->rq.max_wr - rq_ci + rq_pi);
+
+	return ret;
+}
+
+/*
+	rem_rx_pkts: If the data QP has done few transactions and received
+	incoming SENDs which are not processed yet, but need to enable the
+	HW acceleration, then the first 16 bits of STAT RQ PI must have
+	number of Rx pkts that are not processed
+*/
+int xib_enable_hw_accl(struct ib_qp *ibqp)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	struct xib_qp *qp = get_xib_qp(ibqp);
+	struct xrnic_local *xl = xib->xl;
+	u32 val;
+	dma_addr_t db_addr;
+
+	/* Enable SW override enable */
+	val = xrnic_ior(xl, XRNIC_ADV_CONF);
+	val |= (XRNIC_SW_OVER_RIDE_EN << XRNIC_SW_OVER_RIDE_BIT);
+	xrnic_iow(xl, XRNIC_ADV_CONF, val);
+
+	xrnic_iow(xl, XRNIC_CQ_HEAD_PTR(qp->hw_qpn), 0);
+	xrnic_iow(xl, XRNIC_SQ_PROD_IDX(qp->hw_qpn), 0);
+	xrnic_iow(xl, XRNIC_STAT_CUR_SQ_PTR(qp->hw_qpn), 0);
+	wmb();
+
+	db_addr = (dma_addr_t)xrnic_get_rq_db_addr(xl, qp->hw_qpn);
+	xrnic_iow(xl, XRNIC_RCVQ_WP_DB_ADDR_LSB(qp->hw_qpn), db_addr);
+	wmb();
+
+	xrnic_iow(xl, XRNIC_RCVQ_WP_DB_ADDR_MSB(qp->hw_qpn),
+			 UPPER_32_BITS(db_addr));
+	wmb();
+
+	db_addr = (dma_addr_t)xrnic_get_sq_db_addr(xl, qp->hw_qpn);
+	xrnic_iow(xl, XRNIC_CQ_DB_ADDR_LSB(qp->hw_qpn), db_addr);
+	wmb();
+
+	xrnic_iow(xl, XRNIC_CQ_DB_ADDR_MSB(qp->hw_qpn),
+				UPPER_32_BITS(db_addr));
+	wmb();
+
+	val = xrnic_ior(xl, XRNIC_STAT_RQ_PROD_IDX(qp->hw_qpn));
+	/* get pending RQs to be processed */
+	val = (val & 0xFFFF) << 16 | get_rq_pending_cnt(ibqp);
+	xrnic_iow(xl, XRNIC_STAT_RQ_PROD_IDX(qp->hw_qpn), val);
+
+	val = xrnic_ior(xl, XRNIC_QP_CONF(qp->hw_qpn));
+	val &= ~(QP_HW_HSK_DIS);
+	xrnic_iow(xl, XRNIC_QP_CONF(qp->hw_qpn), val);
+
+	val = xrnic_ior(xl, XRNIC_ADV_CONF);
+	val &= ~(XRNIC_SW_OVER_RIDE_EN << XRNIC_SW_OVER_RIDE_BIT);
+	xrnic_iow(xl, XRNIC_ADV_CONF, val);
+	return 0;
+}
+
+static enum ib_qp_state xib_get_ibqp_state(enum xib_qp_state qp_state)
+{
+	switch (qp_state) {
+	case XIB_QP_STATE_RESET:
+		return IB_QPS_RESET;
+	case XIB_QP_STATE_INIT:
+		return IB_QPS_INIT;
+	case XIB_QP_STATE_RTR:
+		return IB_QPS_RTR;
+	case XIB_QP_STATE_RTS:
+		return IB_QPS_RTS;
+	case XIB_QP_STATE_SQD:
+		return IB_QPS_SQD;
+	case XIB_QP_STATE_ERR:
+		return IB_QPS_ERR;
+	case XIB_QP_STATE_SQE:
+		return IB_QPS_SQE;
+	}
+	return IB_QPS_ERR;
+}
+
+static enum xib_qp_state xib_get_state_from_ibqp(
+					enum ib_qp_state qp_state)
+{
+	switch (qp_state) {
+	case IB_QPS_RESET:
+		return XIB_QP_STATE_RESET;
+	case IB_QPS_INIT:
+		return XIB_QP_STATE_INIT;
+	case IB_QPS_RTR:
+		return XIB_QP_STATE_RTR;
+	case IB_QPS_RTS:
+		return XIB_QP_STATE_RTS;
+	case IB_QPS_SQD:
+		return XIB_QP_STATE_SQD;
+	case IB_QPS_ERR:
+		return XIB_QP_STATE_ERR;
+	default:
+		return XIB_QP_STATE_ERR;
+	}
+}
+
+
+
+int xib_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
+		      int attr_mask, struct ib_udata *udata)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	struct xib_qp *qp = get_xib_qp(ibqp);
+	struct xib_qp_modify_params qp_params = { 0, };
+	const struct ib_global_route *grh = rdma_ah_read_grh(&attr->ah_attr);
+	enum xib_qp_state curr_qp_state, new_qp_state;
+        // struct xib_sq *sq = &qp->sq;
+
+	dev_dbg(&xib->ib_dev.dev, "%s : <---------- \n", __func__);
+
+	dev_dbg(&xib->ib_dev.dev, "modify qp: qp %px attr_mask=0x%x, state=%d\n", ibqp, attr_mask,
+		 attr->qp_state);
+
+	if (attr_mask & IB_ENABLE_QP_HW_ACCL)
+		return xib_enable_hw_accl(ibqp);
+	if (attr_mask & IB_QP_RST_RQ)
+		return xib_rst_rq(qp);
+
+    /* 需根据内核版本更改 */
+	// if (attr_mask & IB_QP_RST_SQ_CQ)
+	// 	return xib_rst_cq_sq(qp, attr->nvmf_rhost);
+	curr_qp_state = xib_get_ibqp_state(qp->state);
+	if (attr_mask & IB_QP_STATE)
+		new_qp_state = attr->qp_state;
+	else
+		new_qp_state = curr_qp_state;
+
+	if (!ib_modify_qp_is_ok
+		(curr_qp_state, new_qp_state, ibqp->qp_type, attr_mask)) {
+		dev_err(&xib->ib_dev.dev,
+			"modify qp: invalid attr mask: 0x%x specified for\n"
+			"qpn=0x%x of type=0x%x curr_qp_state=0x%x,\n"
+			"new_qp_state=0x%x\n", attr_mask, qp->hw_qpn+1,
+			ibqp->qp_type, curr_qp_state, new_qp_state);
+		return -EINVAL;
+	}
+
+	if (attr_mask & (IB_QP_AV | IB_QP_PATH_MTU)) {
+		dev_dbg(&xib->ib_dev.dev, "mtu: %d traffic class: %d hop limit: %d\n",
+				attr->path_mtu, grh->traffic_class,
+				grh->hop_limit);
+
+		qp_params.traffic_class = grh->traffic_class;
+		qp_params.hop_limit = grh->hop_limit;
+
+#ifdef DEBUG_IPV6
+		memcpy(&qp_params.ip4_daddr, grh->dgid.raw + 12, 4);
+		qp_params.ip_version = 4;
+#else
+		/* if IPV4 mapped Ipv6 address then first 10B are 0's, next 2B 's are all 1's
+			The following macro checks the avoce condition */
+		if (ipv6_addr_v4mapped((struct in6_addr *)&grh->sgid_attr->gid)) {
+			memcpy(&qp_params.ip4_daddr, grh->dgid.raw + 12, 4);
+			qp_params.ip_version = 4;
+		} else {
+			memcpy(qp_params.ipv6_addr, grh->dgid.raw, 16);
+			qp_params.ip_version = 6;
+		}
+#endif
+
+		ether_addr_copy(qp_params.dmac,
+				attr->ah_attr.roce.dmac);
+		dev_dbg(&xib->ib_dev.dev, "dmac: %x:%x:%x:%x:%x:%x\n", qp_params.dmac[0],
+				qp_params.dmac[1], qp_params.dmac[2],
+				qp_params.dmac[3], qp_params.dmac[4],
+				qp_params.dmac[5]);
+		qp_params.flags |= XIB_MODIFY_QP_DEST_MAC |
+			XIB_MODIFY_QP_AV;
+	}
+	if (attr_mask & IB_QP_STATE) {
+		qp_params.flags |= XIB_MODIFY_QP_STATE;
+		qp_params.qp_state = xib_get_state_from_ibqp(attr->qp_state);
+	}
+
+	if (attr_mask & (IB_QP_RETRY_CNT | IB_QP_RNR_RETRY)) {
+		qp_params.flags |= XIB_MODIFY_QP_TIMEOUT;
+		qp_params.retry_cnt = attr->retry_cnt;
+		if (attr->rnr_retry == 0)
+			attr->rnr_retry = 5;
+		qp_params.rnr_retry_cnt = attr->rnr_retry;
+	}
+
+	if (attr_mask & IB_QP_SQ_PSN) {
+		qp_params.flags |= XIB_MODIFY_QP_SQ_PSN;
+		qp_params.sq_psn = attr->sq_psn;
+	}
+	if (attr_mask & IB_QP_RQ_PSN) {
+		qp_params.flags |= XIB_MODIFY_QP_RQ_PSN;
+		qp_params.rq_psn = attr->rq_psn;
+	}
+	if (attr_mask & IB_QP_DEST_QPN) {
+		qp_params.flags |= XIB_MODIFY_QP_DEST_QP;
+		qp_params.dest_qp = attr->dest_qp_num;
+	}
+
+	// xrnic_qp_modify(qp, &qp_params);
+
+	return 0;
+}
+
+#define ROCE_REQ_MAX_INLINE_DATA_SIZE (256)
+int xib_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
+		int attr_mask, struct ib_qp_init_attr *qp_init_attr)
+{
+	struct xib_qp *qp = get_xib_qp(ibqp);
+
+	dev_dbg(&ibqp->device->dev, "%s : <---------- \n", __func__);
+
+	memset(qp_attr, 0, sizeof(*qp_attr));
+
+	qp_attr->qp_state = xib_get_ibqp_state(qp->state);
+
+	qp_attr->cap.max_send_wr = qp->sq.max_wr;
+	qp_attr->cap.max_recv_wr = qp->rq.max_wr;
+	qp_attr->cap.max_inline_data = ROCE_REQ_MAX_INLINE_DATA_SIZE;
+	qp_attr->cap.max_send_sge = XIB_MAX_SQE_SGE; /* TODO get from device cap */
+	qp_attr->cap.max_recv_sge = XIB_MAX_RQE_SGE; /* TODO get from device cap */
+
+	qp_attr->ah_attr.type = RDMA_AH_ATTR_TYPE_ROCE;
+	qp_attr->port_num = 1;
+	qp_attr->alt_pkey_index = 0;
+	qp_attr->alt_port_num = 0;
+	qp_attr->alt_timeout = 0;
+	/* for xnvmf use case */
+    /* 需根据内核版本更改 */
+	// qp_attr->sq_ba_p = qp->sq_ba_p;
+	// qp_attr->rq_ba_p = qp->rq.rq_ba_p;
+
+	return 0;
+}
+
+int xrnic_reset_user_qp(struct xib_qp *qp)
+{
+	#define QP_UNDER_RECOVERY       (1 << 6)
+	struct xilinx_ib_dev *xib = get_xilinx_dev(qp->ib_qp.device);
+	int val = 0, ret;
+	unsigned long timeout;
+	dma_addr_t db_addr;
+
+	if (!xib) {
+		dev_dbg(&xib->ib_dev.dev, "xib dev not found\n");
+		return -EFAULT;
+	}
+
+	/* 1. Wait till SQ/OSQ are empty */
+	while(1) {
+		val = xrnic_ior(xib->xl, XRNIC_STAT_QP(qp->hw_qpn));
+		if ((val >> 9) & 0x3)
+			break;
+	}
+
+	/* 2. Check SQ PI == CQ Head */
+	timeout = jiffies;
+	do {
+		val = xrnic_ior(xib->xl, XRNIC_SQ_PROD_IDX(qp->hw_qpn));
+		ret = xrnic_ior(xib->xl, XRNIC_CQ_HEAD_PTR(qp->hw_qpn));
+		if (time_after(jiffies, (timeout + 1 * HZ)))
+			break;
+	} while(!(val == ret));
+
+	/* 3. Wait till STAT_RQ_PI_DB == RQ_CI_DB */
+	timeout = jiffies;
+	do {
+		val = xrnic_ior(xib->xl, XRNIC_RQ_CONS_IDX(qp->hw_qpn));
+		ret = xrnic_ior(xib->xl, XRNIC_STAT_RQ_PROD_IDX(qp->hw_qpn));
+		if (time_after(jiffies, (timeout + 1 * HZ)))
+			break;
+	} while(!(val == ret));
+
+	/* 4. Disable HW handshake */
+	val = xrnic_ior(xib->xl, XRNIC_QP_CONF(qp->hw_qpn));
+	val |= QP_HW_HSK_DIS;
+	xrnic_iow(xib->xl, XRNIC_QP_CONF(qp->hw_qpn), val);
+
+	/* 5. write the RQ wr ptr DB address back
+	(if in case other app changes it) */
+	db_addr = xrnic_get_rq_db_addr(xib->xl, qp->hw_qpn);
+	xrnic_iow(xib->xl, XRNIC_RCVQ_WP_DB_ADDR_LSB(qp->hw_qpn), db_addr);
+	xrnic_iow(xib->xl, XRNIC_RCVQ_WP_DB_ADDR_MSB(qp->hw_qpn),
+					UPPER_32_BITS(db_addr));
+
+	/* 6. Write SQ completion DB addr */
+	db_addr = xrnic_get_sq_db_addr(xib->xl, qp->hw_qpn);
+	xrnic_iow(xib->xl, XRNIC_CQ_DB_ADDR_LSB(qp->hw_qpn), db_addr);
+	xrnic_iow(xib->xl, XRNIC_CQ_DB_ADDR_MSB(qp->hw_qpn),
+					UPPER_32_BITS(db_addr));
+
+	/* 7. Disable the QP & Enable the SW override */
+	val = xrnic_ior(xib->xl, XRNIC_QP_CONF(qp->hw_qpn));
+	val &= ~(QP_ENABLE);
+	xrnic_iow(xib->xl, XRNIC_QP_CONF(qp->hw_qpn), val);
+
+	/* 8. Reset QP pointers to 0s */
+	/* En SW override */
+	val = xrnic_ior(xib->xl, XRNIC_ADV_CONF);
+	val |= (XRNIC_SW_OVER_RIDE_EN << XRNIC_SW_OVER_RIDE_BIT);
+	xrnic_iow(xib->xl, XRNIC_ADV_CONF, val);
+
+	xrnic_iow(xib->xl, XRNIC_STAT_RQ_PROD_IDX(qp->hw_qpn), 0);
+	xrnic_iow(xib->xl, XRNIC_RQ_CONS_IDX(qp->hw_qpn), 0);
+	xrnic_iow(xib->xl, XRNIC_STAT_CUR_SQ_PTR(qp->hw_qpn), 0);
+	xrnic_iow(xib->xl, XRNIC_SQ_PROD_IDX(qp->hw_qpn), 0);
+	xrnic_iow(xib->xl, XRNIC_CQ_HEAD_PTR(qp->hw_qpn), 0);
+	xrnic_iow(xib->xl, XRNIC_SNDQ_PSN(qp->hw_qpn), 0);
+	xrnic_iow(xib->xl, XRNIC_LAST_RQ_PSN(qp->hw_qpn), 0);
+	xrnic_iow(xib->xl, XRNIC_STAT_MSG_SQN(qp->hw_qpn), 0);
+
+	/* 9. put QP under recovery */
+	val = xrnic_ior(xib->xl, XRNIC_QP_CONF(qp->hw_qpn));
+	val |= QP_ENABLE;
+	xrnic_iow(xib->xl, XRNIC_QP_CONF(qp->hw_qpn), val);
+	val &= ~(QP_UNDER_RECOVERY);
+	xrnic_iow(xib->xl, XRNIC_QP_CONF(qp->hw_qpn), val);
+
+	/* 10. Disable SW override */
+	val = xrnic_ior(xib->xl, XRNIC_ADV_CONF);
+	val &= ~(XRNIC_SW_OVER_RIDE_EN << XRNIC_SW_OVER_RIDE_BIT);
+	xrnic_iow(xib->xl, XRNIC_ADV_CONF, val);
+	return 0;
+}
+
+int xib_destroy_qp(struct ib_qp *ibqp, struct ib_udata *udata)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	struct xib_qp *qp = get_xib_qp(ibqp);
+
+	switch (qp->qp_type) {
+	case XIB_QP_TYPE_KERNEL:
+		dev_dbg(&xib->ib_dev.dev, "%s : kernel\n", __func__);
+		/* qp rst same for kernel/user qp */
+		xrnic_reset_user_qp(qp);
+		xrnic_qp_disable(qp);
+		xib_dealloc_qp_buffers(ibqp->device, qp);
+		kfree(qp->sq.wr_id_array);
+		kfree(qp->sq.pl_buf_list);
+		kfree(qp->rq.rqe_list);
+		kfree(qp->imm_inv_data);
+		xib->qp_list[qp->hw_qpn] = NULL;
+		xib_bmap_release_id(&xib->qp_map, qp->hw_qpn);
+		break;
+
+	case XIB_QP_TYPE_USER:
+		dev_dbg(&xib->ib_dev.dev, "%s : user\n", __func__);
+		xrnic_reset_user_qp(qp);
+		xrnic_qp_disable(qp);
+		xib_dealloc_user_qp_buffers(ibqp->device, qp);
+		xib_bmap_release_id(&xib->qp_map, qp->hw_qpn);
+		break;
+
+	case XIB_QP_TYPE_GSI:
+		dev_dbg(&xib->ib_dev.dev, "%s : gsi\n", __func__);
+		xrnic_reset_user_qp(qp);
+		xrnic_qp_disable(qp);
+		xib_dealloc_gsi_qp_buffers(ibqp->device, qp);
+		kfree(qp->sq.wr_id_array);
+		kfree(qp->sq.pl_buf_list);
+		kfree(qp->rq.rqe_list);
+		kfree(qp->imm_inv_data);
+		xib->gsi_qp = NULL;
+		break;
+	default:
+		dev_dbg(&xib->ib_dev.dev, "%s : unknown qp_type\n", __func__);
+		break;
+	}
+
+	kfree(qp);
+	return 0;
+}
+
+int xib_prepare_sgl(u8 *buf, const struct ib_send_wr *wr)
+{
+	int i, size = 0;
+	void *sgl_va;
+
+	for (i = 0; i < wr->num_sge; i++) {
+		if(size > XRNIC_SEND_SGL_SIZE) {
+			pr_err("%s: send wr len size exceeds max\n",
+					__func__);
+			return -1;
+		}
+		sgl_va = (void *)phys_to_virt((unsigned long)wr->sg_list[i].addr);
+
+		memcpy(buf, sgl_va, wr->sg_list[i].length);
+		buf += wr->sg_list[i].length;
+		size += wr->sg_list[i].length;
+	}
+	return size;
+}
+
+int xib_get_payload_size(struct ib_sge *sg_list, int num_sge)
+{
+	u32 i, total = 0;
+
+	for (i = 0; i < num_sge; i++) {
+		total += sg_list[i].length;
+	}
+
+	return total;
+}
+
+// static int xib_gsi_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
+// 		      const struct ib_send_wr **bad_wr)
+// {
+// 	struct xib_qp *qp = get_xib_qp(ibqp);
+// 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+// 	struct xrnic_wr *xwqe;
+// 	int ret = 0;
+// 	unsigned long flags;
+// 	int size;
+// 	bool is_udp, is_vlan = 0;
+// 	u8 ip_version;
+//         struct xib_sqd *temp;
+
+// 	if (wr->opcode != IB_WR_SEND) {
+// 		dev_err(&ibqp->device->dev,
+// 			"opcode: %d not supported\n", wr->opcode);
+// 		ret = -EINVAL;
+// 		goto fail;
+// 	}
+
+// 	if (qp->send_sgl_busy) {
+// 		dev_err(&ibqp->device->dev, "send sgl is busy");
+// 		ret = -ENOMEM;
+// 		goto fail;
+// 	}
+
+// 	spin_lock_irqsave(&qp->sq_lock, flags);
+// 	if (qp->state == XIB_QP_STATE_SQD) {
+// 		while (wr && (qp->sq.sqd_length < qp->sq.max_wr)) {
+//                         if(!(qp->sq.sqd_wr_list)) {
+// 				qp->sq.sqd_wr_list = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
+//                                 if(!(qp->sq.sqd_wr_list))
+//                                         return -ENOMEM;
+//                                 temp = qp->sq.sqd_wr_list;
+//                         } else {
+//                                 temp = qp->sq.sqd_wr_list;
+//                                 while(temp->next)
+//                                         temp = temp->next;
+// 				temp->next = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
+//                                 if(!(temp->next))
+//                                         return -ENOMEM;
+// 		                temp = temp->next;
+//                         }
+//                 	temp->wr_id = wr->wr_id;
+//                 	temp->next = NULL;
+//                 	wr = wr->next;
+//                         qp->sq.sqd_length++;
+// 		}
+//                 if(qp->sq.sqd_length > qp->sq.max_wr) {
+// 			pr_err("%s: Number of work requests in SQD exceeded maximum limit \n", __func__);
+//                 	return -ENOMEM;
+// 		}
+//         } else {
+// 		while (wr) {
+// 			u8 *buf = (u8 *)qp->send_sgl_v;
+
+// 			xwqe = (struct xrnic_wr *)((unsigned long)(qp->sq_ba_v) +
+// 					qp->sq.sq_cmpl_db_local * sizeof(*xwqe));
+
+// 			xwqe->wrid = (wr->wr_id) & XRNIC_WR_ID_MASK; /* TODO wrid is 64b
+// 								       but xrnic wrid is
+// 								       2 bytes*/
+// 			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].wr_id = wr->wr_id;
+// 			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].signaled =
+// 							!!(wr->send_flags & IB_SEND_SIGNALED);
+
+// 			ret = xib_build_qp1_send_v2(ibqp, wr,
+// 					xib_get_payload_size(wr->sg_list, wr->num_sge),
+// 					&is_udp,
+// 					&ip_version);
+// 			if (ret < 0) {
+// 				dev_err(&ibqp->device->dev, "%s: xib_build_qp1_send_v2 failed\n",
+// 						__func__);
+// 				spin_unlock_irqrestore(&qp->sq_lock, flags);
+// 				goto fail;
+// 			}
+// 			/* set dest ip address */
+// 			if (ip_version == 6)
+// 				config_raw_ip(xib->xl, XRNIC_IPV6_ADD_1, (u32 *)&qp->qp1_hdr.grh.source_gid,
+// 						1);
+// 			else
+// 				config_raw_ip(xib->xl, XRNIC_IPV4_ADDR,
+// 						(u32 *)&qp->qp1_hdr.ip4.saddr, 0);
+
+// 			/* for UD header is needed by HW */
+// 			size = ib_ud_header_pack(&qp->qp1_hdr, buf);
+// 			buf = buf + size;
+
+// 			size += xib_prepare_sgl(buf, wr);
+// 			if (size < 0 ) {
+// 				spin_unlock_irqrestore(&qp->sq_lock, flags);
+// 				ret = -ENOMEM;
+// 				goto fail;
+// 			}
+
+// 			#if 0 /* TODO handle vlan ? */
+// 			if (is_udp && ip_version == 4)
+// 				size -= 20;
+// 			if (!is_udp)
+// 				size -= 8;
+// 			if(!is_vlan)
+// 				size -= 4;
+// 			#endif
+
+// 			xwqe->l_addr = qp->send_sgl_p;
+// 			xwqe->r_offset = 0;
+// 			xwqe->r_tag = 0;
+// 			xwqe->length = size;
+// 			xwqe->opcode = XRNIC_SEND_ONLY;
+// 			xrnic_send_wr(qp, xib);
+
+// 			wr = wr->next;
+// 		}
+// 	}
+
+// 	spin_unlock_irqrestore(&qp->sq_lock, flags);
+// 	return 0;
+// fail:
+// 	*bad_wr = wr;
+// 	return ret;
+// }
+
+// static int __xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
+// 		      const struct ib_send_wr **bad_wr)
+// {
+// 	struct xib_qp *qp = get_xib_qp(ibqp);
+// 	struct xrnic_wr xwqe;
+// 	void *dest;
+// 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+// 	int ret = 0, j = 0;
+// 	char *from;
+// 	unsigned long flags;
+// 	int size;
+//         struct xib_sqd *temp;
+
+// 	qp->post_send_count++;
+// 	spin_lock_irqsave(&qp->sq_lock, flags);
+// 	if (qp->state == XIB_QP_STATE_SQD) {
+// 		while (wr && (qp->sq.sqd_length < qp->sq.max_wr)) {
+//                         if(!(qp->sq.sqd_wr_list)) {
+// 				qp->sq.sqd_wr_list = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
+//                                 if(!(qp->sq.sqd_wr_list))
+//                                         return -ENOMEM;
+//                                 temp = qp->sq.sqd_wr_list;
+//                         } else {
+//                                 temp = qp->sq.sqd_wr_list;
+//                                 while(temp->next)
+//                                         temp = temp->next;
+// 				temp->next = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
+//                                 if(!(temp->next))
+//                                         return -ENOMEM;
+// 		                temp = temp->next;
+//                         }
+//                 	temp->wr_id = wr->wr_id;
+//                 	temp->next = NULL;
+//                 	wr = wr->next;
+//                         qp->sq.sqd_length++;
+// 		}
+//                 if(qp->sq.sqd_length > qp->sq.max_wr) {
+// 			pr_err("%s: Number of work requests in SQD exceeded maximum limit \n", __func__);
+//                 	return -ENOMEM;
+// 		}
+//         } else {
+// 		while (wr) {
+// 			xwqe.wrid = (wr->wr_id) & XRNIC_WR_ID_MASK; /* TODO wrid is 64b
+// 								       but xrnic wrid is
+// 								       2 bytes*/
+// 			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].wr_id = wr->wr_id;
+// 			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].signaled =
+// 							!!(wr->send_flags & IB_SEND_SIGNALED);
+
+// 			if ((wr->opcode == IB_WR_SEND) || (wr->opcode == IB_WR_SEND_WITH_INV) ||
+// 					(wr->opcode == IB_WR_SEND_WITH_IMM)) {
+// 				u8 *buf;
+// 				struct xib_pl_buf *plb;
+
+// 				plb = &qp->sq.pl_buf_list[qp->sq.sq_cmpl_db_local];
+
+// 				plb->len = xib_get_payload_size(wr->sg_list, wr->num_sge);
+
+// 				if (xib_pl_present())
+// 					from = "pl";
+// 				else
+// 					from = "ps";
+
+// 				plb->va = xib_alloc_coherent(from, xib,
+// 							plb->len,
+// 							&plb->pa,
+// 							GFP_KERNEL);
+// 				if (!plb->va) {
+// 					spin_unlock_irqrestore(&qp->sq_lock, flags);
+// 					dev_err(&ibqp->device->dev, "failed to alloc rdma rd/wr mem\n");
+// 					ret = -ENOMEM;
+// 					goto fail;
+// 				}
+
+// 				buf = (u8 *)plb->va;
+
+// 				size = xib_prepare_sgl(buf, wr);
+// 				if (size < 0 ) {
+// 					ret = -EINVAL;
+// 					spin_unlock_irqrestore(&qp->sq_lock, flags);
+// 					goto fail;
+// 				}
+// 				if (size <= XRNIC_MAX_SDATA) {  /* inline data */
+// 					memcpy(xwqe.sdata, buf, size);
+// 					size = XRNIC_MAX_SDATA;
+// 				}
+
+// #ifdef ARCH_HAS_	PS
+// 				if (strcasecmp(from, "ps") == 0) {
+// 					xwqe.l_addr = plb->pa;
+// 				} else {
+// 					/* program only the lower 32
+// 					* as hw assumes the upper
+// 					*/
+// 					xwqe.l_addr = lower_32_bits(plb->pa);
+// 				}
+// #else
+// 				xwqe.l_addr = plb->pa;
+// #endif
+// 				xwqe.r_offset = 0;
+// 				xwqe.r_tag = 0;
+// 			} else {
+// #ifdef ARCH_HAS_	PS
+// 				if (strcasecmp(sq_mem, "ps") == 0) {
+// 					xwqe.l_addr = wr->sg_list[0].addr;
+// 				} else {
+// 					/* even if sq_mem is requested from bram
+// 					* for these admin path we dont really
+// 					* need bram
+// 					*/
+// 					struct xib_pl_buf *plb;
+// 					void *sgl_va;
+
+// 					plb = &qp->sq.pl_buf_list[qp->sq.sq_cmpl_db_local];
+
+// 					BUG_ON(!xib_pl_present());
+
+// 					plb->va = xib_alloc_coherent("pl", xib,
+// 							wr->sg_list[0].length,
+// 							&plb->pa,
+// 							GFP_KERNEL);
+// 					if (!plb->va) {
+// 						spin_unlock_irqrestore(&qp->sq_lock, flags);
+// 						dev_err(&ibqp->device->dev, "failed to alloc rdma rd/wr mem\n");
+// 						ret = -ENOMEM;
+// 						goto fail;
+// 					}
+// 					/* program only the lower 32
+// 					* as hw assumes the upper
+// 					*/
+// 					xwqe.l_addr = lower_32_bits(plb->pa);
+// 					plb->sgl_addr = wr->sg_list[0].addr;
+// 					plb->len = wr->sg_list[0].length;
+// 					if (wr->opcode == IB_WR_RDMA_WRITE) {
+// 						sgl_va = (void *)phys_to_virt(
+// 								(unsigned long) plb->sgl_addr);
+// 						memcpy(plb->va, sgl_va, plb->len);
+// 					}
+// 				}
+// #else
+// 				xwqe.l_addr = lower_32_bits(wr->sg_list[0].addr);
+// #endif
+// 				size = wr->sg_list[0].length;
+// 			}
+
+// 			xwqe.length = size;
+
+// 			if (wr->opcode == IB_WR_RDMA_WRITE ||
+// 					wr->opcode == IB_WR_RDMA_READ) {
+// 				xwqe.r_offset = rdma_wr(wr)->remote_addr;
+// 				xwqe.r_tag = rdma_wr(wr)->rkey;
+// 			}
+
+// 			xwqe.opcode = xib_wr_code(wr->opcode);
+// 			if (xwqe.opcode < 0) {
+// 				dev_err(&ibqp->device->dev,
+// 						"opcode: %d not supported\n", wr->opcode);
+// 				ret = -EINVAL;
+// 				spin_unlock_irqrestore(&qp->sq_lock, flags);
+// 				goto fail;
+// 			}
+// 			dest = (void *)(qp->sq_ba_v +
+// 					qp->sq.sq_cmpl_db_local * sizeof(struct xrnic_wr));
+
+// 			if (qp->io_qp && strcasecmp(sq_mem, "bram") == 0) {
+// 				printk("doing memcpy_toio\n");
+// 				memcpy_toio(dest, &xwqe, sizeof(struct xrnic_wr));
+// 			} else
+// 				memcpy(dest, &xwqe, sizeof(struct xrnic_wr));
+
+// 			if ((wr->opcode == IB_WR_SEND_WITH_IMM) | (wr->opcode == IB_WR_RDMA_WRITE_WITH_IMM))
+// 				/* xwqe.imm_data */
+// 				xwqe.imm_data = be32_to_cpu(wr->ex.imm_data);
+
+// 			if (wr->opcode == IB_WR_SEND_WITH_INV)
+// 				xwqe.r_tag = wr->ex.invalidate_rkey;
+
+// 			xrnic_send_wr(qp, xib);
+
+// 			wmb();
+
+// 			wr = wr->next;
+// 		}
+// 	}
+
+// 	spin_unlock_irqrestore(&qp->sq_lock, flags);
+// 	return 0;
+// fail:
+// 	*bad_wr = wr;
+// 	return ret;
+// }
+
+/*
+ * the operations supported by ernic on send queue:
+ * 1. Send
+ * 2. RDMA Write
+ * 3. RDMA Read
+ *   Atomic, Bind memory Window, Local invalidate
+ *  Fast Register Physical MR are not supported.
+ */
+// int xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
+// 		      const struct ib_send_wr **bad_wr)
+// {
+// 	struct ib_send_wr *twr = wr;
+// 	dev_dbg(&ibqp->device->dev, "%s : <---------- \n", __func__);
+
+// 	if(ibqp->qp_type == IB_QPT_GSI)
+// 		return xib_gsi_post_send(ibqp, wr, bad_wr);
+// 	else
+// 		return __xib_post_send(ibqp, wr, bad_wr);
+// }
+
+
 
 static const struct ib_device_ops xib_dev_ops = {
     .owner	= THIS_MODULE,
@@ -998,8 +1755,11 @@ static const struct ib_device_ops xib_dev_ops = {
 
 	.create_ah	= xib_create_ah,
 	.destroy_ah	= xib_destroy_ah,
-	//.create_qp	= xib_create_qp,
-
+	// .create_qp	= xib_create_qp,
+    .modify_qp	= xib_modify_qp,
+    .query_qp	= xib_query_qp,
+    .destroy_qp	= xib_destroy_qp,
+    // .post_send	= xib_post_send,
 };
 
 

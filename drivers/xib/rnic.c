@@ -148,6 +148,18 @@ void xib_fatal_event(struct xilinx_ib_dev *xib)
 	xrnic_iow(xib->xl, XRNIC_INT_STAT, val);
 }
 
+int xrnic_qp_disable(struct xib_qp *qp)
+{
+	struct ib_qp *ibqp = &qp->ib_qp;
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	struct xrnic_local *xl = xib->xl;
+
+	xrnic_iow(xl, XRNIC_QP_CONF(qp->hw_qpn), 0);
+	wmb();
+
+	return 0;
+}
+
 /*
  *
  */

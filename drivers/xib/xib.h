@@ -73,6 +73,15 @@ struct xib_ucontext {
 
 #define UPPER_32_BITS(a) ((a) >> 32U)
 
+#define XRNIC_SQ_WQE_SIZE 64
+#define XRNIC_SEND_SGL_SIZE 4096
+#if 0
+#define XRNIC_SQ_DEPTH 128
+#define USER_RQ_DEPTH 16
+#define USER_SQ_DEPTH 64
+#define USER_CQ_SIZE  2048
+#endif
+#define CQE_SIZE	4
 
 static inline struct xilinx_ib_dev *get_xilinx_dev(struct ib_device *ibdev)
 {

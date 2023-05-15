@@ -68,6 +68,34 @@ void xib_qp_add(struct xilinx_ib_dev *xib, struct xib_qp *qp)
 	xib->qp_list[qp->hw_qpn] = qp;
 }
 
+static int xib_get_user_qp_area_sz(struct xib_qp *qp)
+{
+	int total_uarea;
+	unsigned int size = 0;
+	struct xib_cq *sq_cq = qp->sq_cq;
+
+	if (!sq_cq) {
+		printk("Invalid CQ association to QP RQ %s:%d\n",
+				__func__, __LINE__);
+		return -EFAULT;
+	}
+
+	total_uarea = qp->sq.max_wr * XRNIC_SQ_WQE_SIZE;
+	total_uarea += qp->rq.max_wr * qp->rq_buf_size;
+#if 1
+	total_uarea += qp->sq.max_wr* CQE_SIZE;
+#else
+	total_uarea += sq_cq->ib_cq.cqe * CQE_SIZE;
+#endif
+	total_uarea += qp->rq.max_wr * sizeof(struct xib_imm_inv);
+	size = total_uarea;
+	size = (total_uarea & ((1 << 12) - 1));
+	size = ((1 << 12) - size);
+	total_uarea += size;
+	total_uarea += qp->rq_buf_size;
+	return total_uarea;
+}
+
 // static int xib_alloc_gsi_qp_buffers(struct ib_device *ibdev, struct xib_qp *qp)
 // {
 // 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibdev);
@@ -155,7 +183,7 @@ void xib_qp_add(struct xilinx_ib_dev *xib, struct xib_qp *qp)
 
 // 	return 0;
 // fail_sgl:
-// 	xib_free_coherent(xib,
+// 	dma_free_coherent(&ibdev->dev,
 // 			XRNIC_SEND_SGL_SIZE,
 // 			qp->send_sgl_v, qp->send_sgl_p);
 // fail_sq:
@@ -366,3 +394,249 @@ struct ib_qp *xib_create_user_qp(struct ib_pd *ib_pd,
 
 // }
 
+/*
+ * rest rq for nvmf use case
+ * with Hardware handshake
+ */
+int xib_rst_rq(struct xib_qp *qp)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(qp->ib_qp.device);
+	struct xrnic_local *xl = xib->xl;
+	struct xib_rq *rq = &qp->rq;
+	u32 config;
+
+	/* Enable SW override enable */
+	xrnic_iow(xl, XRNIC_ADV_CONF, 1);
+	wmb();
+
+	xrnic_iow(xib->xl, XRNIC_RQ_CONS_IDX(qp->hw_qpn), 0);
+	xrnic_iow(xib->xl, XRNIC_STAT_RQ_PROD_IDX(qp->hw_qpn), 0);
+
+	xrnic_iow(xl, XRNIC_RCVQ_BUF_BASE_LSB(qp->hw_qpn), rq->rq_ba_p);
+	xrnic_iow(xl, XRNIC_RCVQ_BUF_BASE_MSB(qp->hw_qpn),
+					UPPER_32_BITS(rq->rq_ba_p));
+	wmb();
+
+	config = (QP_ENABLE | QP_HW_HSK_DIS | QP_CQE_EN);
+	config |= QP_RQ_IRQ_EN | QP_CQ_IRQ_EN;
+
+	/* TODO set pmtu ? */
+	config |= (QP_PMTU_4096 << QP_PMTU_SHIFT);
+	/* rq buf size in multiple of 256 */
+	config |= ((qp->rq_buf_size >> 8) << QP_RQ_BUF_SZ_SHIFT);
+	xrnic_iow(xl, XRNIC_QP_CONF(qp->hw_qpn), config);
+	wmb();
+
+	/* Disable SW override enable */
+	xrnic_iow(xl, XRNIC_ADV_CONF, 0);
+	wmb();
+
+	/* TODO do we need these dummy reads ?*/
+	xrnic_ior(xib->xl, XRNIC_RQ_CONS_IDX(qp->hw_qpn));
+	xrnic_ior(xib->xl, XRNIC_STAT_RQ_PROD_IDX(qp->hw_qpn));
+
+	xrnic_ior(xl, XRNIC_RCVQ_BUF_BASE_LSB(qp->hw_qpn));
+	xrnic_ior(xl, XRNIC_RCVQ_BUF_BASE_MSB(qp->hw_qpn));
+
+	return 0;
+}
+
+/*
+ * rest sq and cq for nvmf use case
+ * with Hardware handshake
+ */
+int xib_rst_cq_sq(struct xib_qp *qp, int nvmf_rhost)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(qp->ib_qp.device);
+	struct xrnic_local *xl = xib->xl;
+	dma_addr_t db_addr;
+	u32 config, cnct_io_cnf;
+
+	/* Enable SW override enable */
+	xrnic_iow(xl, XRNIC_ADV_CONF, 1);
+
+	xrnic_iow(xl, XRNIC_CQ_HEAD_PTR(qp->hw_qpn), 0);
+	xrnic_iow(xl, XRNIC_SQ_PROD_IDX(qp->hw_qpn), 0);
+	xrnic_iow(xl, XRNIC_STAT_CUR_SQ_PTR(qp->hw_qpn), 0);
+	wmb();
+
+	db_addr = 0x8E004000 + nvmf_rhost*4;
+	xrnic_iow(xl, XRNIC_RCVQ_WP_DB_ADDR_LSB(qp->hw_qpn), db_addr);
+	xrnic_iow(xl, XRNIC_RCVQ_WP_DB_ADDR_MSB(qp->hw_qpn),
+						UPPER_32_BITS(db_addr));
+	wmb();
+
+	cnct_io_cnf = db_addr & 0xffff;
+
+	db_addr = 0x8E004400 + nvmf_rhost*4;
+	xrnic_iow(xl, XRNIC_CQ_DB_ADDR_LSB(qp->hw_qpn), db_addr);
+	xrnic_iow(xl, XRNIC_CQ_DB_ADDR_MSB(qp->hw_qpn), UPPER_32_BITS(db_addr));
+	wmb();
+
+	config = xrnic_ior(xl, XRNIC_STAT_RQ_PROD_IDX(qp->hw_qpn));
+
+	cnct_io_cnf |= (config & 0xffff) << 16;
+	xrnic_iow(xl, XRNIC_CNCT_IO_CONF, cnct_io_cnf);
+
+
+	/* enable HW Handshake */
+	config = QP_ENABLE;
+	config |= (QP_PMTU_4096 << QP_PMTU_SHIFT);
+	/* rq buf size in multiple of 256 */
+	config |= ((qp->rq_buf_size >> 8) << QP_RQ_BUF_SZ_SHIFT);
+	xrnic_iow(xl, XRNIC_QP_CONF(qp->hw_qpn), config);
+	wmb();
+
+	/* Disable SW override enable */
+	xrnic_iow(xl, XRNIC_ADV_CONF, 0);
+
+	return 0;
+}
+
+int xib_dealloc_qp_buffers(struct ib_device *ibdev, struct xib_qp *qp)
+{
+	struct xib_rq *rq = &qp->rq;
+
+	/* free sq wqe entries */
+	dma_free_coherent(&ibdev->dev,
+		(qp->sq.max_wr * XRNIC_SQ_WQE_SIZE),
+		qp->sq_ba_v, qp->sq_ba_p);
+
+	/* free rq buffers */
+	dma_free_coherent(&ibdev->dev,
+		(qp->rq.max_wr * qp->rq_buf_size),
+		rq->rq_ba_v, rq->rq_ba_p);
+	return 0;
+}
+
+int xib_dealloc_user_qp_buffers(struct ib_device *ibdev, struct xib_qp *qp)
+{
+	dma_free_coherent(&ibdev->dev,
+			xib_get_user_qp_area_sz(qp),
+			qp->ua_v, qp->ua_p);
+	return 0;
+}
+
+int xib_dealloc_gsi_qp_buffers(struct ib_device *ibdev, struct xib_qp *qp)
+{
+	/* free sgl */
+	dma_free_coherent(&ibdev->dev, XRNIC_SEND_SGL_SIZE,
+		qp->send_sgl_v, qp->send_sgl_p);
+
+	xib_dealloc_qp_buffers(ibdev, qp);
+	return 0;
+}
+
+/*
+ *
+ */
+int xib_build_qp1_send_v2(struct ib_qp *ib_qp,
+			const struct ib_send_wr *wr,
+			int payload_sz,
+			bool *is_udp,
+			u8 *ip_version)
+{
+	struct xib_qp *qp = get_xib_qp(ib_qp);
+	struct rdma_ah_init_attr *ah_init_attr = &get_xib_ah(ud_wr(wr)->ah)->attr;
+	const struct ib_global_route *grh = rdma_ah_read_grh(ah_init_attr->ah_attr);
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ib_qp->device);
+	const struct ib_gid_attr *sgid_attr = grh->sgid_attr;
+	u16 ether_type;
+	bool is_eth = true;
+	bool is_grh = false;
+	int ret;
+
+	dev_dbg(&xib->ib_dev.dev, "%s <---------- \n", __func__);
+
+/* TODO : Getting sgid_attr as NULL for the client-Connect Request if the
+ *        server is not initiated in ERNIC. This occurs in ARM architect,
+ *        works fine in microblaze. This NULL check is the work around.
+ */
+	if (!sgid_attr) {
+		//dev_err(&xib->ib_dev.dev, "%s: sgid_attr is NULL\n", __func__);
+		return 1;
+	}
+	*is_udp = sgid_attr->gid_type == IB_GID_TYPE_ROCE_UDP_ENCAP;
+
+	if (*is_udp) {
+		if (ipv6_addr_v4mapped((struct in6_addr *)&sgid_attr->gid)) {
+			*ip_version = 4;
+			ether_type = ETH_P_IP;
+			is_grh = false;
+		} else {
+			*ip_version = 6;
+			ether_type = ETH_P_IPV6;
+			is_grh = true;
+		}
+	} else {
+		dev_err(&xib->ib_dev.dev, "not udp!!\n");
+		ether_type = ETH_P_IBOE;
+		is_grh = true;
+	}
+
+	ib_ud_header_init(payload_sz, !is_eth, is_eth, false, is_grh,
+			*ip_version, *is_udp, 0, &qp->qp1_hdr);
+
+	/* ETH */
+	ether_addr_copy(qp->qp1_hdr.eth.dmac_h, ah_init_attr->ah_attr->roce.dmac);
+	ether_addr_copy(qp->qp1_hdr.eth.smac_h, xib->netdev->dev_addr);
+
+	qp->qp1_hdr.eth.type = cpu_to_be16(ether_type);
+
+	if (is_grh || (*ip_version == 6)) {
+			/* copy the GIDs / IPV6 addresses */
+		qp->qp1_hdr.grh.hop_limit = 64;
+		qp->qp1_hdr.grh.traffic_class = 0;
+		qp->qp1_hdr.grh.flow_label= 0;
+		memcpy(&qp->qp1_hdr.grh.source_gid, sgid_attr->gid.raw, 16);
+		memcpy(&qp->qp1_hdr.grh.destination_gid, grh->dgid.raw, 16);
+	}
+
+	if (*ip_version == 4) {
+		qp->qp1_hdr.ip4.tos = 0;
+		qp->qp1_hdr.ip4.id = 0;
+		qp->qp1_hdr.ip4.frag_off = htons(IP_DF);
+		/* qp->qp1_hdr.ip4.ttl = grh->hop_limit; */
+		/* TODO check why its coming back as zero */
+		qp->qp1_hdr.ip4.ttl = 64;
+
+		memcpy(&qp->qp1_hdr.ip4.saddr, sgid_attr->gid.raw + 12, 4);
+		memcpy(&qp->qp1_hdr.ip4.daddr, grh->dgid.raw + 12, 4);
+		qp->qp1_hdr.ip4.check = ib_ud_ip4_csum(&qp->qp1_hdr);
+	}
+
+	if (*is_udp) {
+		qp->qp1_hdr.udp.dport = htons(ROCE_V2_UDP_DPORT);
+		qp->qp1_hdr.udp.sport = htons(0x8CD1);
+		qp->qp1_hdr.udp.csum = 0;
+	}
+
+	/* BTH */
+	if (wr->opcode == IB_WR_SEND_WITH_IMM) {
+		qp->qp1_hdr.bth.opcode = IB_OPCODE_UD_SEND_ONLY_WITH_IMMEDIATE;
+		qp->qp1_hdr.immediate_present = 1;
+	} else {
+		qp->qp1_hdr.bth.opcode = IB_OPCODE_UD_SEND_ONLY;
+	}
+
+	if (wr->send_flags & IB_SEND_SOLICITED)
+		qp->qp1_hdr.bth.solicited_event = 1;
+
+	/* pad_count */
+	qp->qp1_hdr.bth.pad_count = (4 - payload_sz) & 3;
+
+	/* P_key for QP1 is for all members */
+	qp->qp1_hdr.bth.pkey = cpu_to_be16(0xFFFF);
+	qp->qp1_hdr.bth.destination_qpn = IB_QP1;
+	qp->qp1_hdr.bth.ack_req = 0;
+	qp->send_psn++;
+	qp->qp1_hdr.bth.psn = cpu_to_be32(qp->send_psn);
+	/* DETH */
+	/* Use the priviledged Q_Key for QP1 */
+	qp->qp1_hdr.deth.qkey = cpu_to_be32(IB_QP1_QKEY);
+	qp->qp1_hdr.deth.source_qpn = IB_QP1;
+
+	return 0;
+fail:
+	return ret;
+}

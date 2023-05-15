@@ -252,4 +252,24 @@ static inline void xib_inc_sw_gsi_cons(struct xib_rq *rq)
 	rq->gsi_cons = (rq->gsi_cons + 1) % rq->max_wr;
 }
 
+
+int xib_build_qp1_send_v2(struct ib_qp *ib_qp,
+			const struct ib_send_wr *wr,
+			int payload_sz,
+			bool *is_udp,
+			u8 *ip_version);
+
+
+void xrnic_send_wr(struct xib_qp *qp, struct xilinx_ib_dev *xib);
+
+int xib_dealloc_qp_buffers(struct ib_device *ibdev, struct xib_qp *qp);
+int xib_dealloc_user_qp_buffers(struct ib_device *ibdev, struct xib_qp *qp);
+int xib_dealloc_gsi_qp_buffers(struct ib_device *ibdev, struct xib_qp *qp);
+int xrnic_qp_disable(struct xib_qp *qp);
+int xib_get_payload_size(struct ib_sge *sg_list, int num_sge);
+int xib_rst_rq(struct xib_qp *qp);
+int xib_rst_cq_sq(struct xib_qp *qp, int nvmf_rhost);
+
+
+
 #endif /* _XIB_IB_VERBS_H_ */
