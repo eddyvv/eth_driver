@@ -1395,319 +1395,336 @@ int xib_get_payload_size(struct ib_sge *sg_list, int num_sge)
 	return total;
 }
 
-// static int xib_gsi_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
-// 		      const struct ib_send_wr **bad_wr)
-// {
-// 	struct xib_qp *qp = get_xib_qp(ibqp);
-// 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
-// 	struct xrnic_wr *xwqe;
-// 	int ret = 0;
-// 	unsigned long flags;
-// 	int size;
-// 	bool is_udp, is_vlan = 0;
-// 	u8 ip_version;
-//         struct xib_sqd *temp;
+static int xib_gsi_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
+		      const struct ib_send_wr **bad_wr)
+{
+	struct xib_qp *qp = get_xib_qp(ibqp);
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	struct xrnic_wr *xwqe;
+	int ret = 0;
+	unsigned long flags;
+	int size;
+	bool is_udp;
+	u8 ip_version;
+        struct xib_sqd *temp;
 
-// 	if (wr->opcode != IB_WR_SEND) {
-// 		dev_err(&ibqp->device->dev,
-// 			"opcode: %d not supported\n", wr->opcode);
-// 		ret = -EINVAL;
-// 		goto fail;
-// 	}
+	if (wr->opcode != IB_WR_SEND) {
+		dev_err(&ibqp->device->dev,
+			"opcode: %d not supported\n", wr->opcode);
+		ret = -EINVAL;
+		goto fail;
+	}
 
-// 	if (qp->send_sgl_busy) {
-// 		dev_err(&ibqp->device->dev, "send sgl is busy");
-// 		ret = -ENOMEM;
-// 		goto fail;
-// 	}
+	if (qp->send_sgl_busy) {
+		dev_err(&ibqp->device->dev, "send sgl is busy");
+		ret = -ENOMEM;
+		goto fail;
+	}
 
-// 	spin_lock_irqsave(&qp->sq_lock, flags);
-// 	if (qp->state == XIB_QP_STATE_SQD) {
-// 		while (wr && (qp->sq.sqd_length < qp->sq.max_wr)) {
-//                         if(!(qp->sq.sqd_wr_list)) {
-// 				qp->sq.sqd_wr_list = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
-//                                 if(!(qp->sq.sqd_wr_list))
-//                                         return -ENOMEM;
-//                                 temp = qp->sq.sqd_wr_list;
-//                         } else {
-//                                 temp = qp->sq.sqd_wr_list;
-//                                 while(temp->next)
-//                                         temp = temp->next;
-// 				temp->next = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
-//                                 if(!(temp->next))
-//                                         return -ENOMEM;
-// 		                temp = temp->next;
-//                         }
-//                 	temp->wr_id = wr->wr_id;
-//                 	temp->next = NULL;
-//                 	wr = wr->next;
-//                         qp->sq.sqd_length++;
-// 		}
-//                 if(qp->sq.sqd_length > qp->sq.max_wr) {
-// 			pr_err("%s: Number of work requests in SQD exceeded maximum limit \n", __func__);
-//                 	return -ENOMEM;
-// 		}
-//         } else {
-// 		while (wr) {
-// 			u8 *buf = (u8 *)qp->send_sgl_v;
+	spin_lock_irqsave(&qp->sq_lock, flags);
+	if (qp->state == XIB_QP_STATE_SQD) {
+		while (wr && (qp->sq.sqd_length < qp->sq.max_wr)) {
+                        if(!(qp->sq.sqd_wr_list)) {
+				qp->sq.sqd_wr_list = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
+                                if(!(qp->sq.sqd_wr_list))
+                                        return -ENOMEM;
+                                temp = qp->sq.sqd_wr_list;
+                        } else {
+                                temp = qp->sq.sqd_wr_list;
+                                while(temp->next)
+                                        temp = temp->next;
+				temp->next = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
+                                if(!(temp->next))
+                                        return -ENOMEM;
+		                temp = temp->next;
+                        }
+                	temp->wr_id = wr->wr_id;
+                	temp->next = NULL;
+                	wr = wr->next;
+                        qp->sq.sqd_length++;
+		}
+                if(qp->sq.sqd_length > qp->sq.max_wr) {
+			pr_err("%s: Number of work requests in SQD exceeded maximum limit \n", __func__);
+                	return -ENOMEM;
+		}
+        } else {
+		while (wr) {
+			u8 *buf = (u8 *)qp->send_sgl_v;
 
-// 			xwqe = (struct xrnic_wr *)((unsigned long)(qp->sq_ba_v) +
-// 					qp->sq.sq_cmpl_db_local * sizeof(*xwqe));
+			xwqe = (struct xrnic_wr *)((unsigned long)(qp->sq_ba_v) +
+					qp->sq.sq_cmpl_db_local * sizeof(*xwqe));
 
-// 			xwqe->wrid = (wr->wr_id) & XRNIC_WR_ID_MASK; /* TODO wrid is 64b
-// 								       but xrnic wrid is
-// 								       2 bytes*/
-// 			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].wr_id = wr->wr_id;
-// 			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].signaled =
-// 							!!(wr->send_flags & IB_SEND_SIGNALED);
+			xwqe->wrid = (wr->wr_id) & XRNIC_WR_ID_MASK; /* TODO wrid is 64b
+								       but xrnic wrid is
+								       2 bytes*/
+			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].wr_id = wr->wr_id;
+			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].signaled =
+							!!(wr->send_flags & IB_SEND_SIGNALED);
 
-// 			ret = xib_build_qp1_send_v2(ibqp, wr,
-// 					xib_get_payload_size(wr->sg_list, wr->num_sge),
-// 					&is_udp,
-// 					&ip_version);
-// 			if (ret < 0) {
-// 				dev_err(&ibqp->device->dev, "%s: xib_build_qp1_send_v2 failed\n",
-// 						__func__);
-// 				spin_unlock_irqrestore(&qp->sq_lock, flags);
-// 				goto fail;
-// 			}
-// 			/* set dest ip address */
-// 			if (ip_version == 6)
-// 				config_raw_ip(xib->xl, XRNIC_IPV6_ADD_1, (u32 *)&qp->qp1_hdr.grh.source_gid,
-// 						1);
-// 			else
-// 				config_raw_ip(xib->xl, XRNIC_IPV4_ADDR,
-// 						(u32 *)&qp->qp1_hdr.ip4.saddr, 0);
+			ret = xib_build_qp1_send_v2(ibqp, wr,
+					xib_get_payload_size(wr->sg_list, wr->num_sge),
+					&is_udp,
+					&ip_version);
+			if (ret < 0) {
+				dev_err(&ibqp->device->dev, "%s: xib_build_qp1_send_v2 failed\n",
+						__func__);
+				spin_unlock_irqrestore(&qp->sq_lock, flags);
+				goto fail;
+			}
+			/* set dest ip address */
+			if (ip_version == 6)
+				config_raw_ip(xib->xl, XRNIC_IPV6_ADD_1, (u32 *)&qp->qp1_hdr.grh.source_gid,
+						1);
+			else
+				config_raw_ip(xib->xl, XRNIC_IPV4_ADDR,
+						(u32 *)&qp->qp1_hdr.ip4.saddr, 0);
 
-// 			/* for UD header is needed by HW */
-// 			size = ib_ud_header_pack(&qp->qp1_hdr, buf);
-// 			buf = buf + size;
+			/* for UD header is needed by HW */
+			size = ib_ud_header_pack(&qp->qp1_hdr, buf);
+			buf = buf + size;
 
-// 			size += xib_prepare_sgl(buf, wr);
-// 			if (size < 0 ) {
-// 				spin_unlock_irqrestore(&qp->sq_lock, flags);
-// 				ret = -ENOMEM;
-// 				goto fail;
-// 			}
+			size += xib_prepare_sgl(buf, wr);
+			if (size < 0 ) {
+				spin_unlock_irqrestore(&qp->sq_lock, flags);
+				ret = -ENOMEM;
+				goto fail;
+			}
 
-// 			#if 0 /* TODO handle vlan ? */
-// 			if (is_udp && ip_version == 4)
-// 				size -= 20;
-// 			if (!is_udp)
-// 				size -= 8;
-// 			if(!is_vlan)
-// 				size -= 4;
-// 			#endif
+			#if 0 /* TODO handle vlan ? */
+			if (is_udp && ip_version == 4)
+				size -= 20;
+			if (!is_udp)
+				size -= 8;
+			if(!is_vlan)
+				size -= 4;
+			#endif
 
-// 			xwqe->l_addr = qp->send_sgl_p;
-// 			xwqe->r_offset = 0;
-// 			xwqe->r_tag = 0;
-// 			xwqe->length = size;
-// 			xwqe->opcode = XRNIC_SEND_ONLY;
-// 			xrnic_send_wr(qp, xib);
+			xwqe->l_addr = qp->send_sgl_p;
+			xwqe->r_offset = 0;
+			xwqe->r_tag = 0;
+			xwqe->length = size;
+			xwqe->opcode = XRNIC_SEND_ONLY;
+			xrnic_send_wr(qp, xib);
 
-// 			wr = wr->next;
-// 		}
-// 	}
+			wr = wr->next;
+		}
+	}
 
-// 	spin_unlock_irqrestore(&qp->sq_lock, flags);
-// 	return 0;
-// fail:
-// 	*bad_wr = wr;
-// 	return ret;
-// }
+	spin_unlock_irqrestore(&qp->sq_lock, flags);
+	return 0;
+fail:
+	*bad_wr = wr;
+	return ret;
+}
 
-// static int __xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
-// 		      const struct ib_send_wr **bad_wr)
-// {
-// 	struct xib_qp *qp = get_xib_qp(ibqp);
-// 	struct xrnic_wr xwqe;
-// 	void *dest;
-// 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
-// 	int ret = 0, j = 0;
-// 	char *from;
-// 	unsigned long flags;
-// 	int size;
-//         struct xib_sqd *temp;
+int xib_wr_code(int opcode)
+{
+	switch (opcode) {
+	case IB_WR_SEND:
+		return XRNIC_SEND_ONLY;
+	case IB_WR_SEND_WITH_INV:
+		/* TODO ernic doesnt support send_with_inv
+		 * use send instead;
+		 */
+		return XRNIC_SEND_WITH_INV;
+	case IB_WR_RDMA_READ:
+		return XRNIC_RDMA_READ;
+	case IB_WR_RDMA_WRITE:
+		return XRNIC_RDMA_WRITE;
+	case IB_WR_RDMA_WRITE_WITH_IMM:
+		return XRNIC_RDMA_WRITE_WITH_IMM;
+	case IB_WR_SEND_WITH_IMM:
+		return XRNIC_SEND_WITH_IMM;
+	default:
+		return XRNIC_INVALID_OPC;
+	}
+}
 
-// 	qp->post_send_count++;
-// 	spin_lock_irqsave(&qp->sq_lock, flags);
-// 	if (qp->state == XIB_QP_STATE_SQD) {
-// 		while (wr && (qp->sq.sqd_length < qp->sq.max_wr)) {
-//                         if(!(qp->sq.sqd_wr_list)) {
-// 				qp->sq.sqd_wr_list = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
-//                                 if(!(qp->sq.sqd_wr_list))
-//                                         return -ENOMEM;
-//                                 temp = qp->sq.sqd_wr_list;
-//                         } else {
-//                                 temp = qp->sq.sqd_wr_list;
-//                                 while(temp->next)
-//                                         temp = temp->next;
-// 				temp->next = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
-//                                 if(!(temp->next))
-//                                         return -ENOMEM;
-// 		                temp = temp->next;
-//                         }
-//                 	temp->wr_id = wr->wr_id;
-//                 	temp->next = NULL;
-//                 	wr = wr->next;
-//                         qp->sq.sqd_length++;
-// 		}
-//                 if(qp->sq.sqd_length > qp->sq.max_wr) {
-// 			pr_err("%s: Number of work requests in SQD exceeded maximum limit \n", __func__);
-//                 	return -ENOMEM;
-// 		}
-//         } else {
-// 		while (wr) {
-// 			xwqe.wrid = (wr->wr_id) & XRNIC_WR_ID_MASK; /* TODO wrid is 64b
-// 								       but xrnic wrid is
-// 								       2 bytes*/
-// 			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].wr_id = wr->wr_id;
-// 			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].signaled =
-// 							!!(wr->send_flags & IB_SEND_SIGNALED);
+static int __xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
+		      const struct ib_send_wr **bad_wr)
+{
+	struct xib_qp *qp = get_xib_qp(ibqp);
+	struct xrnic_wr xwqe;
+	void *dest;
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	int ret = 0;
+	unsigned long flags;
+	int size;
+        struct xib_sqd *temp;
 
-// 			if ((wr->opcode == IB_WR_SEND) || (wr->opcode == IB_WR_SEND_WITH_INV) ||
-// 					(wr->opcode == IB_WR_SEND_WITH_IMM)) {
-// 				u8 *buf;
-// 				struct xib_pl_buf *plb;
+	qp->post_send_count++;
+	spin_lock_irqsave(&qp->sq_lock, flags);
+	if (qp->state == XIB_QP_STATE_SQD) {
+		while (wr && (qp->sq.sqd_length < qp->sq.max_wr)) {
+                        if(!(qp->sq.sqd_wr_list)) {
+				qp->sq.sqd_wr_list = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
+                                if(!(qp->sq.sqd_wr_list))
+                                        return -ENOMEM;
+                                temp = qp->sq.sqd_wr_list;
+                        } else {
+                                temp = qp->sq.sqd_wr_list;
+                                while(temp->next)
+                                        temp = temp->next;
+				temp->next = kzalloc(sizeof(struct xib_sqd), GFP_KERNEL);
+                                if(!(temp->next))
+                                        return -ENOMEM;
+		                temp = temp->next;
+                        }
+                	temp->wr_id = wr->wr_id;
+                	temp->next = NULL;
+                	wr = wr->next;
+                        qp->sq.sqd_length++;
+		}
+                if(qp->sq.sqd_length > qp->sq.max_wr) {
+			pr_err("%s: Number of work requests in SQD exceeded maximum limit \n", __func__);
+                	return -ENOMEM;
+		}
+        } else {
+		while (wr) {
+			xwqe.wrid = (wr->wr_id) & XRNIC_WR_ID_MASK; /* TODO wrid is 64b
+								       but xrnic wrid is
+								       2 bytes*/
+			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].wr_id = wr->wr_id;
+			qp->sq.wr_id_array[qp->sq.sq_cmpl_db_local].signaled =
+							!!(wr->send_flags & IB_SEND_SIGNALED);
 
-// 				plb = &qp->sq.pl_buf_list[qp->sq.sq_cmpl_db_local];
+			if ((wr->opcode == IB_WR_SEND) || (wr->opcode == IB_WR_SEND_WITH_INV) ||
+					(wr->opcode == IB_WR_SEND_WITH_IMM)) {
+				u8 *buf;
+				struct xib_pl_buf *plb;
 
-// 				plb->len = xib_get_payload_size(wr->sg_list, wr->num_sge);
+				plb = &qp->sq.pl_buf_list[qp->sq.sq_cmpl_db_local];
 
-// 				if (xib_pl_present())
-// 					from = "pl";
-// 				else
-// 					from = "ps";
+				plb->len = xib_get_payload_size(wr->sg_list, wr->num_sge);
 
-// 				plb->va = xib_alloc_coherent(from, xib,
-// 							plb->len,
-// 							&plb->pa,
-// 							GFP_KERNEL);
-// 				if (!plb->va) {
-// 					spin_unlock_irqrestore(&qp->sq_lock, flags);
-// 					dev_err(&ibqp->device->dev, "failed to alloc rdma rd/wr mem\n");
-// 					ret = -ENOMEM;
-// 					goto fail;
-// 				}
+				plb->va = dma_alloc_coherent(&xib->pdev->dev,
+							plb->len,
+							&plb->pa,
+							GFP_KERNEL);
+				if (!plb->va) {
+					spin_unlock_irqrestore(&qp->sq_lock, flags);
+					dev_err(&ibqp->device->dev, "failed to alloc rdma rd/wr mem\n");
+					ret = -ENOMEM;
+					goto fail;
+				}
 
-// 				buf = (u8 *)plb->va;
+				buf = (u8 *)plb->va;
 
-// 				size = xib_prepare_sgl(buf, wr);
-// 				if (size < 0 ) {
-// 					ret = -EINVAL;
-// 					spin_unlock_irqrestore(&qp->sq_lock, flags);
-// 					goto fail;
-// 				}
-// 				if (size <= XRNIC_MAX_SDATA) {  /* inline data */
-// 					memcpy(xwqe.sdata, buf, size);
-// 					size = XRNIC_MAX_SDATA;
-// 				}
+				size = xib_prepare_sgl(buf, wr);
+				if (size < 0 ) {
+					ret = -EINVAL;
+					spin_unlock_irqrestore(&qp->sq_lock, flags);
+					goto fail;
+				}
+				if (size <= XRNIC_MAX_SDATA) {  /* inline data */
+					memcpy(xwqe.sdata, buf, size);
+					size = XRNIC_MAX_SDATA;
+				}
 
-// #ifdef ARCH_HAS_	PS
-// 				if (strcasecmp(from, "ps") == 0) {
-// 					xwqe.l_addr = plb->pa;
-// 				} else {
-// 					/* program only the lower 32
-// 					* as hw assumes the upper
-// 					*/
-// 					xwqe.l_addr = lower_32_bits(plb->pa);
-// 				}
-// #else
-// 				xwqe.l_addr = plb->pa;
-// #endif
-// 				xwqe.r_offset = 0;
-// 				xwqe.r_tag = 0;
-// 			} else {
-// #ifdef ARCH_HAS_	PS
-// 				if (strcasecmp(sq_mem, "ps") == 0) {
-// 					xwqe.l_addr = wr->sg_list[0].addr;
-// 				} else {
-// 					/* even if sq_mem is requested from bram
-// 					* for these admin path we dont really
-// 					* need bram
-// 					*/
-// 					struct xib_pl_buf *plb;
-// 					void *sgl_va;
+#ifdef ARCH_HAS_	PS
+				if (strcasecmp(from, "ps") == 0) {
+					xwqe.l_addr = plb->pa;
+				} else {
+					/* program only the lower 32
+					* as hw assumes the upper
+					*/
+					xwqe.l_addr = lower_32_bits(plb->pa);
+				}
+#else
+				xwqe.l_addr = plb->pa;
+#endif
+				xwqe.r_offset = 0;
+				xwqe.r_tag = 0;
+			} else {
+#ifdef ARCH_HAS_	PS
+				if (strcasecmp(sq_mem, "ps") == 0) {
+					xwqe.l_addr = wr->sg_list[0].addr;
+				} else {
+					/* even if sq_mem is requested from bram
+					* for these admin path we dont really
+					* need bram
+					*/
+					struct xib_pl_buf *plb;
+					void *sgl_va;
 
-// 					plb = &qp->sq.pl_buf_list[qp->sq.sq_cmpl_db_local];
+					plb = &qp->sq.pl_buf_list[qp->sq.sq_cmpl_db_local];
 
-// 					BUG_ON(!xib_pl_present());
+					BUG_ON(!xib_pl_present());
 
-// 					plb->va = xib_alloc_coherent("pl", xib,
-// 							wr->sg_list[0].length,
-// 							&plb->pa,
-// 							GFP_KERNEL);
-// 					if (!plb->va) {
-// 						spin_unlock_irqrestore(&qp->sq_lock, flags);
-// 						dev_err(&ibqp->device->dev, "failed to alloc rdma rd/wr mem\n");
-// 						ret = -ENOMEM;
-// 						goto fail;
-// 					}
-// 					/* program only the lower 32
-// 					* as hw assumes the upper
-// 					*/
-// 					xwqe.l_addr = lower_32_bits(plb->pa);
-// 					plb->sgl_addr = wr->sg_list[0].addr;
-// 					plb->len = wr->sg_list[0].length;
-// 					if (wr->opcode == IB_WR_RDMA_WRITE) {
-// 						sgl_va = (void *)phys_to_virt(
-// 								(unsigned long) plb->sgl_addr);
-// 						memcpy(plb->va, sgl_va, plb->len);
-// 					}
-// 				}
-// #else
-// 				xwqe.l_addr = lower_32_bits(wr->sg_list[0].addr);
-// #endif
-// 				size = wr->sg_list[0].length;
-// 			}
+					plb->va = xib_alloc_coherent("pl", xib,
+							wr->sg_list[0].length,
+							&plb->pa,
+							GFP_KERNEL);
+					if (!plb->va) {
+						spin_unlock_irqrestore(&qp->sq_lock, flags);
+						dev_err(&ibqp->device->dev, "failed to alloc rdma rd/wr mem\n");
+						ret = -ENOMEM;
+						goto fail;
+					}
+					/* program only the lower 32
+					* as hw assumes the upper
+					*/
+					xwqe.l_addr = lower_32_bits(plb->pa);
+					plb->sgl_addr = wr->sg_list[0].addr;
+					plb->len = wr->sg_list[0].length;
+					if (wr->opcode == IB_WR_RDMA_WRITE) {
+						sgl_va = (void *)phys_to_virt(
+								(unsigned long) plb->sgl_addr);
+						memcpy(plb->va, sgl_va, plb->len);
+					}
+				}
+#else
+				xwqe.l_addr = lower_32_bits(wr->sg_list[0].addr);
+#endif
+				size = wr->sg_list[0].length;
+			}
 
-// 			xwqe.length = size;
+			xwqe.length = size;
 
-// 			if (wr->opcode == IB_WR_RDMA_WRITE ||
-// 					wr->opcode == IB_WR_RDMA_READ) {
-// 				xwqe.r_offset = rdma_wr(wr)->remote_addr;
-// 				xwqe.r_tag = rdma_wr(wr)->rkey;
-// 			}
+			if (wr->opcode == IB_WR_RDMA_WRITE ||
+					wr->opcode == IB_WR_RDMA_READ) {
+				xwqe.r_offset = rdma_wr(wr)->remote_addr;
+				xwqe.r_tag = rdma_wr(wr)->rkey;
+			}
 
-// 			xwqe.opcode = xib_wr_code(wr->opcode);
-// 			if (xwqe.opcode < 0) {
-// 				dev_err(&ibqp->device->dev,
-// 						"opcode: %d not supported\n", wr->opcode);
-// 				ret = -EINVAL;
-// 				spin_unlock_irqrestore(&qp->sq_lock, flags);
-// 				goto fail;
-// 			}
-// 			dest = (void *)(qp->sq_ba_v +
-// 					qp->sq.sq_cmpl_db_local * sizeof(struct xrnic_wr));
+			xwqe.opcode = xib_wr_code(wr->opcode);
+			if (xwqe.opcode < 0) {
+				dev_err(&ibqp->device->dev,
+						"opcode: %d not supported\n", wr->opcode);
+				ret = -EINVAL;
+				spin_unlock_irqrestore(&qp->sq_lock, flags);
+				goto fail;
+			}
+			dest = (void *)(qp->sq_ba_v +
+					qp->sq.sq_cmpl_db_local * sizeof(struct xrnic_wr));
 
-// 			if (qp->io_qp && strcasecmp(sq_mem, "bram") == 0) {
-// 				printk("doing memcpy_toio\n");
-// 				memcpy_toio(dest, &xwqe, sizeof(struct xrnic_wr));
-// 			} else
-// 				memcpy(dest, &xwqe, sizeof(struct xrnic_wr));
+			// if (qp->io_qp && strcasecmp(sq_mem, "bram") == 0) {
+			// 	printk("doing memcpy_toio\n");
+			// 	memcpy_toio(dest, &xwqe, sizeof(struct xrnic_wr));
+			// } else
+				memcpy(dest, &xwqe, sizeof(struct xrnic_wr));
 
-// 			if ((wr->opcode == IB_WR_SEND_WITH_IMM) | (wr->opcode == IB_WR_RDMA_WRITE_WITH_IMM))
-// 				/* xwqe.imm_data */
-// 				xwqe.imm_data = be32_to_cpu(wr->ex.imm_data);
+			if ((wr->opcode == IB_WR_SEND_WITH_IMM) | (wr->opcode == IB_WR_RDMA_WRITE_WITH_IMM))
+				/* xwqe.imm_data */
+				xwqe.imm_data = be32_to_cpu(wr->ex.imm_data);
 
-// 			if (wr->opcode == IB_WR_SEND_WITH_INV)
-// 				xwqe.r_tag = wr->ex.invalidate_rkey;
+			if (wr->opcode == IB_WR_SEND_WITH_INV)
+				xwqe.r_tag = wr->ex.invalidate_rkey;
 
-// 			xrnic_send_wr(qp, xib);
+			xrnic_send_wr(qp, xib);
 
-// 			wmb();
+			wmb();
 
-// 			wr = wr->next;
-// 		}
-// 	}
+			wr = wr->next;
+		}
+	}
 
-// 	spin_unlock_irqrestore(&qp->sq_lock, flags);
-// 	return 0;
-// fail:
-// 	*bad_wr = wr;
-// 	return ret;
-// }
+	spin_unlock_irqrestore(&qp->sq_lock, flags);
+	return 0;
+fail:
+	*bad_wr = wr;
+	return ret;
+}
 
 /*
  * the operations supported by ernic on send queue:
@@ -1723,10 +1740,10 @@ int xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
 	struct ib_send_wr *twr = wr;
 	dev_dbg(&ibqp->device->dev, "%s : <---------- \n", __func__);
 
-	// if(ibqp->qp_type == IB_QPT_GSI)
-	// 	return xib_gsi_post_send(ibqp, wr, bad_wr);
-	// else
-	// 	return __xib_post_send(ibqp, wr, bad_wr);
+	if(ibqp->qp_type == IB_QPT_GSI)
+		return xib_gsi_post_send(ibqp, wr, bad_wr);
+	else
+		return __xib_post_send(ibqp, wr, bad_wr);
 
     return 0;
 }
