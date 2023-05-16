@@ -724,3 +724,375 @@ fail:
 	*bad_wr = wr;
 	return ret;
 }
+
+int xib_get_rq_recd(struct xib_rq *rq, u32 rq_wr_current)
+{
+	int received;
+
+	if (rq_wr_current == rq->rq_wrptr_db_local) {
+		return 0;
+	}
+
+	if (rq->rq_wrptr_db_local > rq_wr_current) {
+		received = (rq_wr_current + rq->max_wr) -
+				rq->rq_wrptr_db_local;
+	} else {
+		received = rq_wr_current - rq->rq_wrptr_db_local;
+	}
+
+	return received;
+}
+
+/* check for RQ */
+int xib_pop_rq(struct xilinx_ib_dev *xib, struct xib_qp *qp, int qpn)
+{
+	int i = 0, rq_pkt_num, loop, len=0;
+	int received = 0, rq_wr_current;
+	struct xrnic_local *xl = xib->xl;
+	struct xib_rq *rq = &qp->rq;
+	u8 *buf;
+	void *sgl_va;
+	struct xib_rqe *rqe;
+	volatile u32 *rq_db_addr;
+
+	#if 0
+	rq_db_addr = (volatile u32 *)
+			phys_to_virt(xrnic_ior(xib->xl, XRNIC_RCVQ_WP_DB_ADDR(qpn)));
+	dev_dbg(&xib->ib_dev.dev, "rq_db_addr: %lx\n", rq_db_addr);
+
+	rq_wr_current = *rq_db_addr;
+	#else
+	rq_db_addr = (volatile u32 *)(xl->qp1_rq_db_v + qpn);
+	rq_wr_current = *rq_db_addr;
+	#endif
+
+	dev_dbg(&xib->ib_dev.dev, "rq_wr_current: %d, rq_wrptr_db_local: %d\n", rq_wr_current,
+			rq->rq_wrptr_db_local);
+
+	received = xib_get_rq_recd(rq, rq_wr_current);
+
+	dev_dbg(&xib->ib_dev.dev, "received %d frames on RQ\n", received);
+
+	for (loop = 0; loop < received; loop++) {
+		if(rq->rq_wrptr_db_local == rq->max_wr)
+			rq->rq_wrptr_db_local = 0;
+		rq_pkt_num = rq->rq_wrptr_db_local;
+		if (rq_pkt_num >= rq->max_wr) {
+			rq_pkt_num = rq_pkt_num - rq->max_wr;
+		}
+		buf = (u8 *)(rq->rq_ba_v + (rq_pkt_num * qp->rq_buf_size));
+
+		/* pop out the wqe */
+		rqe = &rq->rqe_list[rq->gsi_cons];
+		/* we check if wr total len <= XRNIC_RECV_PKT_SIZE
+		 * at post_recv
+		 */
+		for (i = 0; i < rqe->num_sge; i++) {
+			sgl_va = (void *)phys_to_virt
+				((unsigned long)(rqe->sg_list[i].addr));
+			memcpy(sgl_va, buf, rqe->sg_list[i].length);
+			buf = buf + rqe->sg_list[i].length;
+			len += rqe->sg_list[i].length;
+		}
+		xib_inc_sw_gsi_cons(rq);
+		rq->rq_wrptr_db_local++;
+
+		/* tell hw we consumed */
+		xrnic_iow(xib->xl, XRNIC_RQ_CONS_IDX(qpn),
+				rq->rq_wrptr_db_local);
+		wmb();
+	}
+	return received;
+}
+
+/*
+ *
+ */
+int xib_gsi_poll_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibcq->device);
+	struct xrnic_local *xl = xib->xl;
+	struct xib_cq *cq = get_xib_cq(ibcq);
+	struct xib_qp *qp = xib->gsi_qp;
+	struct xib_rq *rq = &qp->rq;
+	struct xib_sq *sq = &qp->sq;
+        struct xib_sqd *temp, *head;
+	struct xrnic_cqe *cqe;
+	struct xib_rqe *rqe;
+	u32 cur_send_cq_head, err_flag;
+	unsigned long flags;
+	u32 opcode;
+	int i = 0;
+
+	spin_lock_irqsave(&cq->cq_lock, flags);
+
+	/* receive queue completions */
+	while (i < num_entries && qp->rq.cons != qp->rq.gsi_cons ) {
+		memset(&wc[i], 0, sizeof(*wc));
+
+		rqe = &rq->rqe_list[rq->cons];
+
+		wc[i].qp = &qp->ib_qp;
+		wc[i].wr_id = rqe->wr_id;
+		wc[i].opcode = IB_WC_RECV;
+		wc[i].pkey_index = 0;
+		wc[i].byte_len = rqe->sg_list[0].length;
+		wc[i].status = IB_WC_SUCCESS;
+		wc[i].wc_flags = IB_WC_GRH;
+		wc[i].wc_flags |= IB_WC_WITH_NETWORK_HDR_TYPE;
+		/* TODO */
+#ifdef DEBUG_IPV6
+		wc[i].network_hdr_type = RDMA_NETWORK_IPV4;
+#else
+		/* TODO */
+		if (rqe->ip_version == 4) {
+			wc[i].network_hdr_type = RDMA_NETWORK_IPV4;
+		}
+		else {
+			wc[i].network_hdr_type = RDMA_NETWORK_IPV6;
+		}
+#endif
+		if (qp->imm_inv_data[rq->cons].isvalid) {
+			if (qp->imm_inv_data[rq->cons].type == SEND_INVALIDATE) {
+				wc[i].wc_flags |= IB_WR_SEND_WITH_INV;
+				wc[i].ex.invalidate_rkey = qp->imm_inv_data[rq->cons].data;
+			} else if (qp->imm_inv_data[rq->cons].type == SEND_IMMEDIATE) {
+				wc[i].wc_flags |= IB_WR_SEND_WITH_IMM;
+				wc[i].ex.imm_data = qp->imm_inv_data[rq->cons].data;
+			}
+			qp->imm_inv_data[rq->cons].isvalid = false;
+		}
+		i++;
+
+		xib_rq_cons_inc(rq);
+		dev_dbg(&xib->ib_dev.dev, "IB_WC_RECV \n");
+	}
+	/* read current send cq db head */
+	cur_send_cq_head = xrnic_ior(xl, XRNIC_CQ_HEAD_PTR(qp->hw_qpn)) &
+				XRNIC_CQ_HEAD_PTR_MASK;
+
+	dev_dbg(&xib->ib_dev.dev, "cur_send_cq_head: %d, send_cq_db_local: %d\n",
+			cur_send_cq_head, sq->send_cq_db_local);
+	/* send queue completions */
+	while (i < num_entries && sq->send_cq_db_local != cur_send_cq_head) {
+		if (sq->send_cq_db_local == sq->max_wr)
+			sq->send_cq_db_local = 0;
+		if (!sq->wr_id_array[sq->send_cq_db_local].signaled)
+			goto skip_cqe;
+
+		cqe = cq->buf_v + (sq->send_cq_db_local * sizeof(struct
+					xrnic_cqe));
+		wc[i].qp = &qp->ib_qp;
+		wc[i].wr_id = sq->wr_id_array[sq->send_cq_db_local].wr_id;
+
+		opcode = (cqe->entry & XRNIC_CQE_OPCODE_MASK) >>
+			XRNIC_CQE_OPCODE_SHIFT;
+		dev_dbg(&xib->ib_dev.dev, "cq opcode:%d \n", opcode);
+
+		BUG_ON(opcode != XRNIC_SEND_ONLY);
+
+		wc[i].opcode = IB_WC_SEND;
+
+		err_flag = (cqe->entry & XRNIC_CQE_ERR_MASK) >>
+				XRNIC_CQE_ERR_SHIFT;
+		if (!err_flag)
+			wc[i].status = IB_WC_SUCCESS;
+		else {
+			dev_err(&xib->ib_dev.dev, "%s: err in cqe\n", __func__);
+			wc[i].status = IB_WC_FATAL_ERR;
+			goto skip_cqe;
+		}
+
+		i++;
+	skip_cqe:
+		sq->send_cq_db_local++;
+		dev_dbg(&xib->ib_dev.dev, "IB_WC_SEND \n");
+	}
+       	temp = sq->sqd_wr_list;
+        while (i < num_entries && temp) {
+		wc[i].wr_id = temp->wr_id;
+		wc[i].status = IB_WC_WR_FLUSH_ERR;
+                i++;
+		head = temp;
+		temp = temp->next;
+		kfree(head);
+                sq->sqd_length--;
+	}
+	sq->sqd_wr_list = temp;
+
+	spin_unlock_irqrestore(&cq->cq_lock, flags);
+
+	return i;
+}
+
+/*
+ *
+ */
+int xib_poll_kernel_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibcq->device);
+	struct xib_cq *cq = get_xib_cq(ibcq);
+	struct xib_qp *qp = cq->qp;
+	struct xib_rq *rq = &qp->rq;
+	struct xib_sq *sq = &qp->sq;
+        struct xib_sqd *temp, *head;
+	struct xrnic_cqe *cqe;
+	struct xib_rqe *rqe;
+	u32 cur_send_cq_head, err_flag;
+	unsigned long flags;
+	u32 opcode, wc_opc;
+	int i = 0, received;
+	// struct device *alloc_dev;
+	struct xib_pl_buf *plb;
+
+	spin_lock_irqsave(&cq->cq_lock, flags);
+
+	dev_dbg(&xib->ib_dev.dev, "xib_poll_kernel_cq\n" );
+
+	received = xib_pop_rq(xib, qp, qp->hw_qpn);
+
+	while (i < num_entries && qp->rq.cons != qp->rq.gsi_cons) {
+		memset(&wc[i], 0, sizeof(*wc));
+
+		rqe = &rq->rqe_list[rq->cons];
+
+		wc[i].qp = &qp->ib_qp;
+		wc[i].wr_id = rqe->wr_id;
+		wc[i].opcode = IB_WC_RECV;
+		wc[i].byte_len = rqe->sg_list[0].length;
+		wc[i].status = IB_WC_SUCCESS;
+		if (qp->imm_inv_data[rq->cons].isvalid) {
+			if (qp->imm_inv_data[rq->cons].type == SEND_INVALIDATE) {
+				wc[i].wc_flags |= IB_WC_WITH_INVALIDATE;
+				wc[i].ex.invalidate_rkey = qp->imm_inv_data[rq->cons].data;
+			} else if (qp->imm_inv_data[rq->cons].type == SEND_IMMEDIATE) {
+				wc[i].wc_flags |= IB_WC_WITH_IMM;
+				wc[i].ex.imm_data = qp->imm_inv_data[rq->cons].data;
+			}
+			qp->imm_inv_data[rq->cons].isvalid = false;
+		}
+		xib_rq_cons_inc(rq);
+		i++;
+	}
+
+	/* read current send cq db head */
+	cur_send_cq_head = xrnic_ior(xib->xl, XRNIC_CQ_HEAD_PTR(qp->hw_qpn)) &
+				XRNIC_CQ_HEAD_PTR_MASK;
+
+	dev_dbg(&xib->ib_dev.dev, "cur_send_cq_head: %d, send_cq_db_local: %d, num_entries: %d\n",
+			cur_send_cq_head, sq->send_cq_db_local, num_entries);
+
+	/* send queue completions */
+	while (i < num_entries && sq->send_cq_db_local != cur_send_cq_head) {
+		if (sq->send_cq_db_local == qp->sq.max_wr)
+			sq->send_cq_db_local = 0;
+		cqe = cq->buf_v + (sq->send_cq_db_local * sizeof(struct
+					xrnic_cqe));
+
+		opcode = (cqe->entry & XRNIC_CQE_OPCODE_MASK) >>
+			XRNIC_CQE_OPCODE_SHIFT;
+
+		switch (opcode) {
+			case XRNIC_SEND_WITH_IMM:
+			case XRNIC_SEND_WITH_INV:
+			case XRNIC_SEND_ONLY:
+				plb = &sq->pl_buf_list[qp->sq.send_cq_db_local];
+				#ifdef CONFIG_MICROBLAZE
+				/* for microblaze cant free buffer with irqs
+				 * disabled
+				 */
+				spin_unlock_irqrestore(&cq->cq_lock, flags);
+				#endif
+				dma_free_coherent(&xib->ib_dev.dev,
+						plb->len,
+						plb->va,
+						plb->pa);
+				#ifdef CONFIG_MICROBLAZE
+				spin_lock_irqsave(&cq->cq_lock, flags);
+				#endif
+				wc_opc = IB_WC_SEND;
+				if (opcode == XRNIC_SEND_WITH_IMM)
+					wc[i].wc_flags |= IB_WC_WITH_IMM;
+				else if (opcode == XRNIC_SEND_WITH_INV)
+					wc[i].wc_flags |= IB_WC_WITH_INVALIDATE;
+			break;
+			case XRNIC_RDMA_READ:
+				#ifdef ARCH_HAS_PS
+				if (strcasecmp(xib_get_sq_mem(), "ps") != 0) {
+					void *sgl_va;
+					plb = &sq->pl_buf_list[qp->sq.send_cq_db_local];
+					/* copy from temp rdma buf to stack
+					 * provided buf
+					 */
+					sgl_va = (void *)phys_to_virt((unsigned long) plb->sgl_addr);
+					memcpy(sgl_va, plb->va, plb->len);
+					xib_free_coherent(xib,
+							plb->len,
+							plb->va,
+							plb->pa);
+				}
+				#endif
+				wc_opc = IB_WC_RDMA_READ;
+			break;
+			case XRNIC_RDMA_WRITE_WITH_IMM:
+			case XRNIC_RDMA_WRITE:
+				#ifdef ARCH_HAS_PS
+				if (strcasecmp(xib_get_sq_mem(), "ps") != 0) {
+					plb = &sq->pl_buf_list[qp->sq.send_cq_db_local];
+					xib_free_coherent(xib,
+							plb->len,
+							plb->va,
+							plb->pa);
+				}
+				#endif
+				wc_opc = IB_WC_RDMA_WRITE;
+				if (opcode == XRNIC_RDMA_WRITE_WITH_IMM)
+					wc[i].wc_flags |= IB_WC_WITH_IMM;
+			break;
+			default:
+				dev_err(&xib->ib_dev.dev, "%s: err in cqe\n", __func__);
+			break;
+		}
+
+		err_flag = (cqe->entry & XRNIC_CQE_ERR_MASK) >>
+				XRNIC_CQE_ERR_SHIFT;
+		if (err_flag) {
+			dev_err(&xib->ib_dev.dev, "%s: err in cqe\n", __func__);
+		}
+
+		if (!sq->wr_id_array[sq->send_cq_db_local].signaled)
+			goto skip_cqe;
+
+		wc[i].opcode = wc_opc;
+		wc[i].qp = &qp->ib_qp;
+		wc[i].wr_id = sq->wr_id_array[sq->send_cq_db_local].wr_id;
+		qp->sq_polled_count++;
+		if (qp->state > XIB_QP_STATE_RTS) {
+			if (qp->post_send_count == qp->sq_polled_count)
+				complete(&qp->sq_drained);
+		}
+
+		if (!err_flag)
+			wc[i].status = IB_WC_SUCCESS;
+		else
+			wc[i].status = IB_WC_FATAL_ERR;
+		i++;
+	skip_cqe:
+		sq->send_cq_db_local++;
+	}
+	temp = sq->sqd_wr_list;
+        while (i < num_entries && temp) {
+        	wc[i].wr_id = temp->wr_id;
+                wc[i].status = IB_WC_WR_FLUSH_ERR;
+                i++;
+		head = temp;
+		temp = temp->next;
+		kfree(head);
+       		sq->sqd_length--;
+        }
+	sq->sqd_wr_list = temp;
+
+	spin_unlock_irqrestore(&cq->cq_lock, flags);
+
+	return i;
+}

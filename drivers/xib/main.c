@@ -1717,17 +1717,19 @@ int xib_get_payload_size(struct ib_sge *sg_list, int num_sge)
  *   Atomic, Bind memory Window, Local invalidate
  *  Fast Register Physical MR are not supported.
  */
-// int xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
-// 		      const struct ib_send_wr **bad_wr)
-// {
-// 	struct ib_send_wr *twr = wr;
-// 	dev_dbg(&ibqp->device->dev, "%s : <---------- \n", __func__);
+int xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
+		      const struct ib_send_wr **bad_wr)
+{
+	struct ib_send_wr *twr = wr;
+	dev_dbg(&ibqp->device->dev, "%s : <---------- \n", __func__);
 
-// 	if(ibqp->qp_type == IB_QPT_GSI)
-// 		return xib_gsi_post_send(ibqp, wr, bad_wr);
-// 	else
-// 		return __xib_post_send(ibqp, wr, bad_wr);
-// }
+	// if(ibqp->qp_type == IB_QPT_GSI)
+	// 	return xib_gsi_post_send(ibqp, wr, bad_wr);
+	// else
+	// 	return __xib_post_send(ibqp, wr, bad_wr);
+
+    return 0;
+}
 
 /* ernic hw automatically reposts consumed receive buffers
  * no need for app to post receive wr
@@ -1736,6 +1738,95 @@ int xib_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *wr,
 		const struct ib_recv_wr **bad_wr)
 {
 	return xib_kernel_qp_post_recv(ibqp, wr, bad_wr);
+}
+
+/*
+ *
+ */
+int xib_create_cq(struct ib_cq *ibcq,
+			const struct ib_cq_init_attr *attr,
+			struct ib_udata *udata)
+{
+	struct ib_device *ibdev = ibcq->device;
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibdev);
+	struct xilinx_ib_dev_attr *dev_attr = &xib->dev_attr;
+	struct xib_cq *cq = get_xib_cq(ibcq);
+	int cqe = attr->cqe;
+	int entries;
+
+	dev_dbg(&xib->ib_dev.dev, "%s : <---------- \n", __func__);
+
+	dev_dbg(&xib->ib_dev.dev, "cqe : %d, dev_attr->max_cq_wqes: %d\n", cqe,
+			dev_attr->max_cq_wqes);
+
+	if (cqe < 1 || cqe > dev_attr->max_cq_wqes) {
+		dev_err(&xib->ib_dev.dev, "Failed to create CQ -max exceeded");
+		return -EINVAL;
+	}
+
+	cq->ib_cq.cqe = cqe;
+	entries = roundup_pow_of_two(cqe + 1);
+	if (entries > dev_attr->max_cq_wqes + 1)
+		entries = dev_attr->max_cq_wqes + 1;
+
+	if (udata) {
+		dev_dbg(&xib->ib_dev.dev, "user mode cq\n");
+		cq->cq_type = XIB_CQ_TYPE_USER;
+	} else {
+		dev_dbg(&xib->ib_dev.dev, "kernel mode cq\n");
+		cq->cq_type = XIB_CQ_TYPE_KERNEL;
+		cq->buf_v = dma_alloc_coherent(&ibdev->dev,
+				cqe * sizeof(struct xrnic_cqe),
+				&cq->buf_p, GFP_KERNEL | __GFP_ZERO);
+		if (!cq->buf_v) {
+			dev_err(&ibdev->dev, "failed to alloc sq dma mem\n");
+			goto fail;
+		}
+		dev_dbg(&xib->ib_dev.dev, "%s: cq->buf_v: %px cq->buf_p : %llx ", __func__, cq->buf_v,
+			cq->buf_p);
+		spin_lock_init(&cq->cq_lock);
+	}
+
+	return 0;
+fail:
+	return -EFAULT;
+}
+
+int xib_destroy_cq(struct ib_cq *ibcq, struct ib_udata *udata)
+{
+	// struct xilinx_ib_dev *xib = get_xilinx_dev(ibcq->device);
+	struct xib_cq *cq = get_xib_cq(ibcq);
+
+	dev_dbg(&ibcq->device->dev, "%s : <---------- \n", __func__);
+
+	if (cq->cq_type == XIB_CQ_TYPE_KERNEL) {
+		dma_free_coherent(&ibcq->device->dev,
+				ibcq->cqe * sizeof(struct xrnic_cqe),
+				cq->buf_v, cq->buf_p);
+	}
+	return 0;
+}
+
+int xib_modify_cq(struct ib_cq *cq, u16 cq_count, u16 cq_period)
+{
+	dev_dbg(&cq->device->dev, "%s : <---------- \n", __func__);
+
+	return 0;
+
+}
+
+int xib_poll_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc)
+{
+	struct xib_cq *cq = get_xib_cq(ibcq);
+
+	if (cq->cq_type == XIB_CQ_TYPE_GSI) {
+		return xib_gsi_poll_cq(ibcq, num_entries, wc);
+	}
+	else if(cq->cq_type == XIB_CQ_TYPE_KERNEL) {
+		return xib_poll_kernel_cq(ibcq, num_entries, wc);
+	}
+
+	return 0;
 }
 
 static const struct ib_device_ops xib_dev_ops = {
@@ -1765,10 +1856,14 @@ static const struct ib_device_ops xib_dev_ops = {
     .modify_qp	= xib_modify_qp,
     .query_qp	= xib_query_qp,
     .destroy_qp	= xib_destroy_qp,
-    // .post_send	= xib_post_send,
+    .post_send	= xib_post_send,
     .drain_sq	= xib_drain_sq,
     .drain_rq	= xib_drain_rq,
     .post_recv	= xib_post_recv,
+    .create_cq	= xib_create_cq,
+    .destroy_cq	= xib_destroy_cq,
+    .modify_cq	= xib_modify_cq,
+    .poll_cq	= xib_poll_cq,
 };
 
 

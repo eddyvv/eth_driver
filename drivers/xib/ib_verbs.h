@@ -252,6 +252,10 @@ static inline void xib_inc_sw_gsi_cons(struct xib_rq *rq)
 	rq->gsi_cons = (rq->gsi_cons + 1) % rq->max_wr;
 }
 
+int xib_poll_kernel_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc);
+
+int xib_gsi_poll_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc);
+
 
 int xib_build_qp1_send_v2(struct ib_qp *ib_qp,
 			const struct ib_send_wr *wr,
