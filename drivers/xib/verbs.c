@@ -544,7 +544,7 @@ int xib_build_qp1_send_v2(struct ib_qp *ib_qp,
 	u16 ether_type;
 	bool is_eth = true;
 	bool is_grh = false;
-	int ret;
+	// int ret;
 
 	dev_dbg(&xib->ib_dev.dev, "%s <---------- \n", __func__);
 
@@ -637,6 +637,90 @@ int xib_build_qp1_send_v2(struct ib_qp *ib_qp,
 	qp->qp1_hdr.deth.source_qpn = IB_QP1;
 
 	return 0;
+// fail:
+// 	return ret;
+}
+
+/**
+ * xib_drain_sq - drain sq
+ * @ibqp: pointer to ibqp
+ */
+void xib_drain_sq(struct ib_qp *ibqp)
+{
+	// struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	// struct xib_qp *qp = get_xib_qp(ibqp);
+    //     struct xib_sq *sq = &qp->sq;
+    return ;
+}
+
+/**
+ * xib_drain_rq - drain rq
+ * @ibqp: pointer to ibqp
+ */
+void xib_drain_rq(struct ib_qp *ibqp)
+{
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibqp->device);
+	struct xib_qp *qp = get_xib_qp(ibqp);
+	struct ib_qp_attr attr = { .qp_state = IB_QPS_ERR };
+	int ret, val;
+	unsigned long timeout;
+
+	ret = ib_modify_qp(ibqp, &attr, IB_QP_STATE);
+	if (ret) {
+		pr_warn("failed to drain sq :%d\n", ret);
+		return;
+	}
+
+	/* Wait till STAT_RQ_PI_DB == RQ_CI_DB */
+	timeout = jiffies;
+	do {
+		val = xrnic_ior(xib->xl, XRNIC_RQ_CONS_IDX(qp->hw_qpn));
+		ret = xrnic_ior(xib->xl, XRNIC_STAT_RQ_PROD_IDX(qp->hw_qpn));
+		if (time_after(jiffies, (timeout + 1 * HZ)))
+			break;
+	} while(!(val == ret));
+}
+
+/*
+ *
+ */
+int xib_kernel_qp_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *wr,
+			const struct ib_recv_wr **bad_wr)
+{
+	struct xib_qp *qp = get_xib_qp(ibqp);
+	struct xib_rqe *rqe;
+	unsigned long flags;
+	int i,ret, data_len;
+
+	spin_lock_irqsave(&qp->rq_lock, flags);
+
+	while (wr) {
+		rqe = &qp->rq.rqe_list[qp->rq.prod];
+		memset(rqe, 0, sizeof(struct xib_rqe));
+		data_len = xib_get_payload_size(wr->sg_list, wr->num_sge);
+		if ((data_len > qp->rq_buf_size) ||
+			 (wr->num_sge > XIB_MAX_RQE_SGE)) {
+			ret = -ENOMEM;
+			pr_err("%s: no mem, wr size: %d, num_sge: %d\n",
+				__func__, data_len, wr->num_sge);
+			goto fail;
+		}
+
+		//if (wr->num_sge > 1) /* suppress this warning */
+		for (i = 0; i < wr->num_sge; i++)
+			rqe->sg_list[i] = wr->sg_list[i];
+		rqe->wr_id = wr->wr_id;
+		rqe->num_sge = wr->num_sge;
+		xib_rq_prod_inc(&qp->rq);
+
+		wr = wr->next;
+	}
+
+	spin_unlock_irqrestore(&qp->rq_lock, flags);
+
+	return 0;
 fail:
+	spin_unlock_irqrestore(&qp->rq_lock, flags);
+	*bad_wr = wr;
 	return ret;
 }

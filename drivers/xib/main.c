@@ -1229,7 +1229,6 @@ int xib_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *qp_attr,
 
 int xrnic_reset_user_qp(struct xib_qp *qp)
 {
-	#define QP_UNDER_RECOVERY       (1 << 6)
 	struct xilinx_ib_dev *xib = get_xilinx_dev(qp->ib_qp.device);
 	int val = 0, ret;
 	unsigned long timeout;
@@ -1730,7 +1729,14 @@ int xib_get_payload_size(struct ib_sge *sg_list, int num_sge)
 // 		return __xib_post_send(ibqp, wr, bad_wr);
 // }
 
-
+/* ernic hw automatically reposts consumed receive buffers
+ * no need for app to post receive wr
+ */
+int xib_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *wr,
+		const struct ib_recv_wr **bad_wr)
+{
+	return xib_kernel_qp_post_recv(ibqp, wr, bad_wr);
+}
 
 static const struct ib_device_ops xib_dev_ops = {
     .owner	= THIS_MODULE,
@@ -1760,6 +1766,9 @@ static const struct ib_device_ops xib_dev_ops = {
     .query_qp	= xib_query_qp,
     .destroy_qp	= xib_destroy_qp,
     // .post_send	= xib_post_send,
+    .drain_sq	= xib_drain_sq,
+    .drain_rq	= xib_drain_rq,
+    .post_recv	= xib_post_recv,
 };
 
 
