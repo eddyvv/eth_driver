@@ -252,6 +252,14 @@ static inline void xib_inc_sw_gsi_cons(struct xib_rq *rq)
 	rq->gsi_cons = (rq->gsi_cons + 1) % rq->max_wr;
 }
 
+struct ib_mr *xib_reg_user_mr(struct ib_pd *pd, u64 start, u64 length,
+				   u64 virt_addr, int access_flags,
+				   struct ib_udata *udata);
+
+struct ib_mr *xib_reg_user_mr_ex(struct ib_pd *pd, u64 start, u64 length,
+				   u64 virt_addr, int access_flags,
+				   struct ib_udata *udata);
+
 int xib_poll_kernel_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc);
 
 int xib_gsi_poll_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc);

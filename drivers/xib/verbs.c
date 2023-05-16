@@ -1096,3 +1096,81 @@ int xib_poll_kernel_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc)
 
 	return i;
 }
+
+struct ib_mr *xib_reg_user_mr(struct ib_pd *ib_pd, u64 start, u64 length,
+				   u64 virt_addr, int access_flags,
+				   struct ib_udata *udata)
+{
+	struct xib_mr *mr = NULL;
+	struct xib_pd *pd = get_xib_pd(ib_pd);
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ib_pd->device);
+	// struct ib_umem *umem;
+	u64 *pbl_tbl, *pbl_tbl_orig, phy_addr;
+	int umem_pgs;
+	// struct scatterlist *sg;
+	int ret = 0;
+	u32 mr_idx;
+	u8 rkey;
+	struct page **page_list;
+	char *k_va;
+
+	dev_dbg(&xib->ib_dev.dev, "xib_reg_user_mr: user mr pd = %d start = %llx, len = %lld,"
+			"usr_addr = %llx, acc = %d\n",
+		 pd->pdn, start, length, virt_addr, access_flags);
+
+	mr = kzalloc(sizeof(*mr), GFP_KERNEL);
+	if (!mr)
+		return ERR_PTR(-ENOMEM);
+
+#ifndef CONFIG_MICROBLAZE
+	page_list = (struct page **) __get_free_page(GFP_KERNEL);
+	if (!page_list) {
+		printk("Unable to allocate free page");
+		return -ENOMEM;
+	}
+
+	down_read(&current->mm->mmap_lock);
+	ret = get_user_pages(start, 1, FOLL_WRITE,
+					page_list, NULL);
+	if (ret < 0) {
+		up_read(&current->mm->mmap_lock);
+		goto fail;
+	}
+
+	up_read(&current->mm->mmap_lock);
+	k_va = kmap(page_list[0]);
+	phy_addr = virt_to_phys(k_va);
+	pbl_tbl_orig = &phy_addr;
+#else
+	phy_addr = start;
+	pbl_tbl_orig = &phy_addr;
+#endif
+
+	spin_lock_bh(&xib->lock);
+	ret = xib_bmap_alloc_id(&xib->mr_map, &mr_idx);
+	spin_unlock_bh(&xib->lock);
+	if (ret < 0)
+		goto fail;
+
+	dev_dbg(&xib->ib_dev.dev, "umem_pgs: %d pbl_tbl: %px pdn: %d, mr_idx: %d\n", umem_pgs, pbl_tbl,
+			pd->pdn, mr_idx);
+	get_random_bytes(&rkey, sizeof(rkey));
+
+	/* Lkey must be the chunk ID of the reg mr */
+	mr->ib_mr.lkey = (mr_idx << 8) | rkey;
+	mr->ib_mr.rkey = (mr_idx << 8) | rkey;
+	mr->ib_mr.device = ib_pd->device;
+
+	mr->mr_idx = mr_idx;
+	mr->rkey = rkey;
+	mr->type = XIB_MR_USER;
+
+	xrnic_reg_mr(xib, virt_addr, length, pbl_tbl_orig, 1 /*umem_pgs*/, pd->pdn, mr_idx, rkey);
+
+	free_page((unsigned long)page_list);
+	return &mr->ib_mr;
+fail:
+	free_page((unsigned long)page_list);
+	kfree(mr);
+	return ret;
+}

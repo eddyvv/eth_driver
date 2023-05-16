@@ -1829,6 +1829,67 @@ int xib_poll_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc)
 	return 0;
 }
 
+int xib_arm_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags)
+{
+	dev_dbg(&ibcq->device->dev, "%s : <---------- \n", __func__);
+	return 0;
+}
+
+struct ib_mr *xib_get_dma_mr(struct ib_pd *pd, int acc)
+{
+	struct xib_mr *mr;
+
+	dev_dbg(&pd->device->dev, "%s : <---------- \n", __func__);
+
+	mr = kzalloc(sizeof(*mr), GFP_KERNEL);
+	if (!mr)
+		return ERR_PTR(-ENOMEM);
+
+	mr->type = XIB_MR_DMA;
+	mr->ib_mr.rkey = mr->ib_mr.lkey = 0x101;
+	return &mr->ib_mr;
+}
+
+int xib_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
+{
+	struct xib_mr *mr = get_xib_mr(ibmr);
+	struct xilinx_ib_dev *xib = get_xilinx_dev(ibmr->device);
+#undef	KERNEL_MR_ALLOC_IMPL
+
+	dev_dbg(&xib->ib_dev.dev, "%s : <---------- \n", __func__);
+
+	/*TODO: even the kernel apps uses a wrapper around the
+		reg_user_mr implementaion thus using the mr bit.
+		Until there is an implementation for alloc_mr
+		this should be in place */
+
+#ifdef KERNEL_MR_ALLOC_IMPL
+	if (mr->type == XIB_MR_USER) {
+#endif
+		spin_lock_bh(&xib->lock);
+		xib_bmap_release_id(&xib->mr_map, mr->mr_idx);
+		spin_unlock_bh(&xib->lock);
+#ifdef KERNEL_MR_ALLOC_IMPL
+	}
+	if (mr->umem)
+		ib_umem_release(mr->umem);
+#endif
+	return 0;
+}
+
+static int xib_port_immutable(struct ib_device *ibdev, u32 port_num,
+			       struct ib_port_immutable *immutable)
+{
+	dev_dbg(&ibdev->dev, "%s : port_num: %d <---------- \n", __func__, port_num);
+
+	immutable->pkey_tbl_len = 1;
+	immutable->gid_tbl_len = 128; /* TODO */
+	//immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE;
+	immutable->core_cap_flags = RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
+	immutable->max_mad_size = IB_MGMT_MAD_SIZE;
+	return 0;
+}
+
 static const struct ib_device_ops xib_dev_ops = {
     .owner	= THIS_MODULE,
 	// .driver_id = RDMA_DRIVER_XLNX,
@@ -1864,6 +1925,17 @@ static const struct ib_device_ops xib_dev_ops = {
     .destroy_cq	= xib_destroy_cq,
     .modify_cq	= xib_modify_cq,
     .poll_cq	= xib_poll_cq,
+    .req_notify_cq = xib_arm_cq,
+    .get_dma_mr	= xib_get_dma_mr,
+    .dereg_mr	= xib_dereg_mr,
+    .get_port_immutable	= xib_port_immutable,
+
+    .reg_user_mr	=xib_reg_user_mr,
+    // .reg_user_mr_ex	= xib_reg_user_mr,
+    INIT_RDMA_OBJ_SIZE(ib_ah, xib_ah, ib_ah),
+        INIT_RDMA_OBJ_SIZE(ib_cq, xib_cq, ib_cq),
+	INIT_RDMA_OBJ_SIZE(ib_pd, xib_pd, ib_pd),
+	INIT_RDMA_OBJ_SIZE(ib_ucontext, xib_ucontext, ib_uc),
 };
 
 
