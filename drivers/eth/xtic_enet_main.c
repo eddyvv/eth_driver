@@ -212,7 +212,7 @@ static void xtnet_device_reset(struct net_device *ndev)
          * This ensures that 10G ethernet IP
          * is functioning normally or not.
          */
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
         err = readl_poll_timeout(lp->xxv.v_regs + XXV_STATRX_BLKLCK_OFFSET,
                      val, (val & XXV_RX_BLKLCK_MASK),
                      10, DELAY_OF_ONE_MILLISEC);
@@ -265,9 +265,9 @@ static int xtenet_open(struct net_device *ndev)
     struct axienet_dma_q *q;
     xt_printfunc("%s start\n",__func__);
     xtnet_device_reset(ndev);
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
     if (!lp->is_tsn) {
-#elif defined(LINUX_5_15)
+#elif defined(LINUX_5_10_VM)
     if (lp->is_tsn) {
 #endif
         /* DMA配置 */
@@ -352,7 +352,7 @@ static int xtenet_open(struct net_device *ndev)
         /* Check block lock bit to make sure RX path is ok with
          * USXGMII initialization.
          */
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
         err = readl_poll_timeout(lp->xxv.v_regs + XXV_STATRX_BLKLCK_OFFSET,
                      reg, (reg & XXV_RX_BLKLCK_MASK),
                      100, DELAY_OF_ONE_MILLISEC);
@@ -363,7 +363,7 @@ static int xtenet_open(struct net_device *ndev)
             ret = -ENODEV;
             goto err_eth_irq;
         }
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
         err = readl_poll_timeout(lp->xxv.v_regs + XXV_USXGMII_AN_STS_OFFSET,
                      reg, (reg & USXGMII_AN_STS_COMP_MASK),
                      1000000, DELAY_OF_ONE_MILLISEC);
@@ -412,9 +412,9 @@ static int xticenet_stop(struct net_device *ndev)
 
     lp->axienet_config->setoptions(ndev, lp->options &
                ~(XAE_OPTION_TXEN | XAE_OPTION_RXEN));
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
     if (!lp->is_tsn)
-#elif defined(LINUX_5_15)
+#elif defined(LINUX_5_10_VM)
     if (lp->is_tsn)
 #endif
     {
@@ -1016,7 +1016,7 @@ xt_err_disable:
 void xtnet_irq_deinit_pcie(struct axienet_local *dev)
 {
     struct pci_dev *pdev = dev->pdev;
-#if defined(LINUX_5_15)
+#if defined(LINUX_5_10_VM)
     int k;
 
     for (k = 0; k < 1; k++)
@@ -1311,33 +1311,50 @@ void axienet_ethtools_strings(struct net_device *ndev, u32 sset, u8 *data)
     }
 }
 
-#if defined(LINUX_5_15)
 /**
- * axienet_ethtools_set_coalesce - Set DMA interrupt coalescing count.
- * @ndev:    Pointer to net_device structure
- * @ecoalesce:    Pointer to ethtool_coalesce structure
+ * axienet_ethtools_get_regs - Dump the contents of all registers present
+ *			       in AxiEthernet core.
+ * @ndev:	Pointer to net_device structure
+ * @regs:	Pointer to ethtool_regs structure
+ * @ret:	Void pointer used to return the contents of the registers.
  *
- * This implements ethtool command for setting the DMA interrupt coalescing
- * count on Tx and Rx paths. Issue "ethtool -C ethX rx-frames 5" under linux
- * prompt to execute this function.
- *
- * Return: 0, on success, Non-zero error value on failure.
+ * This implements ethtool command for getting the Axi Ethernet register dump.
+ * Issue "ethtool -d ethX" to execute this function.
  */
-static int axienet_ethtools_set_coalesce(struct net_device *ndec,
-                                struct ethtool_coalesce *ecoalesce,
-                                struct kernel_ethtool_coalesce *kecoalesce,
-                                struct netlink_ext_ack *netlink_ext_ack)
+static void axienet_ethtools_get_regs(struct net_device *ndev,
+				      struct ethtool_regs *regs, void *ret)
 {
+	u32 *data = (u32 *)ret;
+	size_t len = sizeof(u32) * AXIENET_REGS_N;
+	struct axienet_local *lp = netdev_priv(ndev);
 
-    return 0;
+	regs->version = 0;
+	regs->len = len;
+
+	memset(data, 0, len);
+	data[0] = axienet_ior(lp, XXV_GT_RESET_OFFSET);
+	data[1] = axienet_ior(lp, XXV_TC_OFFSET);
+	data[2] = axienet_ior(lp, XXV_RCW1_OFFSET);
+	data[3] = axienet_ior(lp, XXV_JUM_OFFSET);
+	data[4] = axienet_ior(lp, XXV_TICKREG_OFFSET);
+	data[5] = axienet_ior(lp, XXV_STATRX_BLKLCK_OFFSET);
+	data[6] = axienet_ior(lp, XXV_USXGMII_AN_OFFSET);
+	data[7] = axienet_ior(lp, XXV_USXGMII_AN_STS_OFFSET);
+	/* Support only single DMA queue */
+	data[32] = axienet_dma_in32(lp->dq[0], XAXIDMA_TX_CR_OFFSET);
+	data[33] = axienet_dma_in32(lp->dq[0], XAXIDMA_TX_SR_OFFSET);
+	data[34] = axienet_dma_in32(lp->dq[0], XAXIDMA_TX_CDESC_OFFSET);
+	data[35] = axienet_dma_in32(lp->dq[0], XAXIDMA_TX_TDESC_OFFSET);
+	data[36] = axienet_dma_in32(lp->dq[0], XAXIDMA_RX_CR_OFFSET);
+	data[37] = axienet_dma_in32(lp->dq[0], XAXIDMA_RX_SR_OFFSET);
+	data[38] = axienet_dma_in32(lp->dq[0], XAXIDMA_RX_CDESC_OFFSET);
+	data[39] = axienet_dma_in32(lp->dq[0], XAXIDMA_RX_TDESC_OFFSET);
 }
-#endif
 
-#if defined(LINUX_5_4)
 /**
  * axienet_ethtools_set_coalesce - Set DMA interrupt coalescing count.
- * @ndev:    Pointer to net_device structure
- * @ecoalesce:    Pointer to ethtool_coalesce structure
+ * @ndev:	Pointer to net_device structure
+ * @ecoalesce:	Pointer to ethtool_coalesce structure
  *
  * This implements ethtool command for setting the DMA interrupt coalescing
  * count on Tx and Rx paths. Issue "ethtool -C ethX rx-frames 5" under linux
@@ -1346,28 +1363,151 @@ static int axienet_ethtools_set_coalesce(struct net_device *ndec,
  * Return: 0, on success, Non-zero error value on failure.
  */
 static int axienet_ethtools_set_coalesce(struct net_device *ndev,
-                     struct ethtool_coalesce *ecoalesce)
+					 struct ethtool_coalesce *ecoalesce)
 {
-    return 0;
+	struct axienet_local *lp = netdev_priv(ndev);
+
+	if (netif_running(ndev)) {
+		netdev_err(ndev,
+			   "Please stop netif before applying configuration\n");
+		return -EFAULT;
+	}
+
+	if ((ecoalesce->rx_coalesce_usecs) ||
+	    (ecoalesce->rx_coalesce_usecs_irq) ||
+	    (ecoalesce->rx_max_coalesced_frames_irq) ||
+	    (ecoalesce->tx_coalesce_usecs) ||
+	    (ecoalesce->tx_coalesce_usecs_irq) ||
+	    (ecoalesce->tx_max_coalesced_frames_irq) ||
+	    (ecoalesce->stats_block_coalesce_usecs) ||
+	    (ecoalesce->use_adaptive_rx_coalesce) ||
+	    (ecoalesce->use_adaptive_tx_coalesce) ||
+	    (ecoalesce->pkt_rate_low) ||
+	    (ecoalesce->rx_coalesce_usecs_low) ||
+	    (ecoalesce->rx_max_coalesced_frames_low) ||
+	    (ecoalesce->tx_coalesce_usecs_low) ||
+	    (ecoalesce->tx_max_coalesced_frames_low) ||
+	    (ecoalesce->pkt_rate_high) ||
+	    (ecoalesce->rx_coalesce_usecs_high) ||
+	    (ecoalesce->rx_max_coalesced_frames_high) ||
+	    (ecoalesce->tx_coalesce_usecs_high) ||
+	    (ecoalesce->tx_max_coalesced_frames_high) ||
+	    (ecoalesce->rate_sample_interval))
+		return -EOPNOTSUPP;
+	if (ecoalesce->rx_max_coalesced_frames)
+		lp->coalesce_count_rx = ecoalesce->rx_max_coalesced_frames;
+	if (ecoalesce->tx_max_coalesced_frames)
+		lp->coalesce_count_tx = ecoalesce->tx_max_coalesced_frames;
+
+	return 0;
 }
-#endif // LINUX_5_4
+
+/**
+ * axienet_ethtools_get_pauseparam - Get the pause parameter setting for
+ *				     Tx and Rx paths.
+ * @ndev:	Pointer to net_device structure
+ * @epauseparm:	Pointer to ethtool_pauseparam structure.
+ *
+ * This implements ethtool command for getting axi ethernet pause frame
+ * setting. Issue "ethtool -a ethX" to execute this function.
+ */
+static void
+axienet_ethtools_get_pauseparam(struct net_device *ndev,
+				struct ethtool_pauseparam *epauseparm)
+{
+	epauseparm->autoneg  = 0;
+}
+
+/**
+ * axienet_ethtools_set_pauseparam - Set device pause parameter(flow control)
+ *				     settings.
+ * @ndev:	Pointer to net_device structure
+ * @epauseparm:	Pointer to ethtool_pauseparam structure
+ *
+ * This implements ethtool command for enabling flow control on Rx and Tx
+ * paths. Issue "ethtool -A ethX tx on|off" under linux prompt to execute this
+ * function.
+ *
+ * Return: 0 on success, -EFAULT if device is running
+ */
+static int
+axienet_ethtools_set_pauseparam(struct net_device *ndev,
+				struct ethtool_pauseparam *epauseparm)
+{
+	// u32 regval = 0;
+	// struct axienet_local *lp = netdev_priv(ndev);
+
+	if (netif_running(ndev)) {
+		netdev_err(ndev,
+			   "Please stop netif before applying configuration\n");
+		return -EFAULT;
+	}
+
+	// regval = axienet_ior(lp, XAE_FCC_OFFSET);
+	// if (epauseparm->tx_pause)
+	// 	regval |= XAE_FCC_FCTX_MASK;
+	// else
+	// 	regval &= ~XAE_FCC_FCTX_MASK;
+	// if (epauseparm->rx_pause)
+	// 	regval |= XAE_FCC_FCRX_MASK;
+	// else
+	// 	regval &= ~XAE_FCC_FCRX_MASK;
+	// axienet_iow(lp, XAE_FCC_OFFSET, regval);
+
+	return 0;
+}
+
+/**
+ * axienet_ethtools_get_coalesce - Get DMA interrupt coalescing count.
+ * @ndev:	Pointer to net_device structure
+ * @ecoalesce:	Pointer to ethtool_coalesce structure
+ *
+ * This implements ethtool command for getting the DMA interrupt coalescing
+ * count on Tx and Rx paths. Issue "ethtool -c ethX" under linux prompt to
+ * execute this function.
+ *
+ * Return: 0 always
+ */
+static int axienet_ethtools_get_coalesce(struct net_device *ndev,
+					 struct ethtool_coalesce *ecoalesce)
+{
+	u32 regval = 0;
+	struct axienet_local *lp = netdev_priv(ndev);
+	struct axienet_dma_q *q;
+	int i;
+
+	for_each_rx_dma_queue(lp, i) {
+		q = lp->dq[i];
+
+		regval = axienet_dma_in32(q, XAXIDMA_RX_CR_OFFSET);
+		ecoalesce->rx_max_coalesced_frames +=
+						(regval & XAXIDMA_COALESCE_MASK)
+						     >> XAXIDMA_COALESCE_SHIFT;
+	}
+	for_each_tx_dma_queue(lp, i) {
+		q = lp->dq[i];
+		regval = axienet_dma_in32(q, XAXIDMA_TX_CR_OFFSET);
+		ecoalesce->tx_max_coalesced_frames +=
+						(regval & XAXIDMA_COALESCE_MASK)
+						     >> XAXIDMA_COALESCE_SHIFT;
+	}
+	return 0;
+}
 
 static const struct ethtool_ops xtnet_ethtool_ops = {
-#if defined(LINUX_5_15)
-     .supported_coalesce_params = ETHTOOL_COALESCE_MAX_FRAMES,
-#endif
+    .supported_coalesce_params = ETHTOOL_COALESCE_MAX_FRAMES,
     .get_drvinfo    = axienet_ethtools_get_drvinfo,
     .get_regs_len   = axienet_ethtools_get_regs_len,
-//     .get_regs       = axienet_ethtools_get_regs,
+    .get_regs       = axienet_ethtools_get_regs,
     .get_link       = ethtool_op_get_link,
     .get_ringparam    = axienet_ethtools_get_ringparam,
     .set_ringparam  = axienet_ethtools_set_ringparam,
-//     .get_pauseparam = axienet_ethtools_get_pauseparam,
-//     .set_pauseparam = axienet_ethtools_set_pauseparam,
-//     .get_coalesce   = axienet_ethtools_get_coalesce,
+    .get_pauseparam = axienet_ethtools_get_pauseparam,
+    .set_pauseparam = axienet_ethtools_set_pauseparam,
+    .get_coalesce   = axienet_ethtools_get_coalesce,
     .set_coalesce   = axienet_ethtools_set_coalesce,
     .get_sset_count    = axienet_ethtools_sset_count,
-//     .get_ethtool_stats = axienet_ethtools_get_stats,
+    .get_ethtool_stats = axienet_ethtools_get_stats,
     .get_strings = axienet_ethtools_strings,
     .get_link_ksettings = phy_ethtool_get_link_ksettings,
     .set_link_ksettings = phy_ethtool_set_link_ksettings,
@@ -1381,7 +1521,7 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
     struct pci_dev *pdev = dev->pdev;
     int i;
     // Allocate MSI IRQs
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
     dev->eth_irq = pci_alloc_irq_vectors(pdev, 1, XTIC_PCIE_MAX_IRQ, PCI_IRQ_MSI);
     xt_printk("dev->eth_irq = %d\n", dev->eth_irq);
     if (dev->eth_irq < 0) {
@@ -1392,11 +1532,11 @@ static int xtnet_irq_init_pcie(struct axienet_local *dev)
     dev->irqn[0] = pci_irq_vector(pdev, 0);
 
     // Set up interrupts
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
     dev->irqn[1] = pci_irq_vector(pdev, 1);
     dev->irqn[2] = pci_irq_vector(pdev, 2);
     for_each_rx_dma_queue(dev, i)
-#elif defined(LINUX_5_15)
+#elif defined(LINUX_5_10_VM)
     for (i = 0; i < 1; i++)
 #endif
     {
@@ -1478,10 +1618,10 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     u16 num_queues = XTIC_MAX_QUEUES;
 
     xt_printfunc("%s start!\n", __func__);
-#if defined(LINUX_5_4)
-    xt_printk("define LINUX_5_4\n");
-#elif defined(LINUX_5_15)
-    xt_printk("define LINUX_5_15\n");
+#if defined(LINUX_5_10)
+    xt_printk("define LINUX_5_10\n");
+#elif defined(LINUX_5_10_VM)
+    xt_printk("define LINUX_5_10_VM\n");
 #endif
     /* 申请用于存放xtenet设备的空间 */
     ndev = alloc_etherdev_mq(sizeof(struct axienet_local), num_queues);
@@ -1656,7 +1796,6 @@ static void xtenet_remove(struct pci_dev *pdev)
     xt_printk("%s start\n",__func__);
 
     xt_roce_dev_remove(lp);
-
     unregister_netdev(lp->ndev);
     iounmap(lp->bar0.v_regs);
     xtenet_pci_close(lp);

@@ -10,7 +10,7 @@
 #define IB_QP_RST_RQ          (1<<26)
 #define IB_QP_RST_SQ_CQ       (1<<27)
 #define IB_ENABLE_QP_HW_ACCL  (1<<28)
-
+#define RDMA_DRIVER_XLNX      19
 
 
 

@@ -103,13 +103,13 @@ void set_reg_addr(int cmd, struct s_read_reg *reg)
     {
         case XXV_REG:
             reg->len = 15;
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
             reg_base = XXV_ETHERNET_0_BASE;
 #endif
             break;
         case AXIDMA_REG:
             reg->len = 24;
-#if defined(LINUX_5_4)
+#if defined(LINUX_5_10)
             reg_base = AXIDMA_1_BASE;
 #endif
             break;

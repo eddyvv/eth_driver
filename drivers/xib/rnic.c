@@ -56,6 +56,112 @@ int xrnic_start(struct xrnic_local *xl)
 	return 0;
 }
 
+int is_ipv4_addr(char *buf)
+{
+	/*TODO: Current design posts all 0's as the first 20B if it's IPV4 header,
+		Request for v6 mapped v4 address */
+	uint32_t *bufp = (uint32_t *)buf, i, val = 0, lim = (IB_GRH_BYTES - IB_IP4_BYTES) / sizeof(*bufp);
+
+	for (i = 0; i < lim; i++)
+		val |= buf[i];
+	return val;
+}
+
+void xib_gsi_comp_handler(unsigned long data)
+{
+	#define	IPV4_PAYLOAD_DATA_OFS	(20)
+	struct xilinx_ib_dev *xib = (struct xilinx_ib_dev *)data;
+	struct xrnic_local *xl = xib->xl;
+	struct xib_qp *qp = xib->gsi_qp;
+	struct xib_rq *rq = &qp->rq;
+	volatile u32 *rq_db_addr;
+	u32 rq_wr_current;
+	struct ethhdr *eth_hdr;
+	struct iphdr *iph;
+	struct ipv6hdr *ip6h;
+	struct xib_cq *cq;
+	struct xib_rqe *rqe;
+	int i, received, offset = 0, ret = 0;
+	int mad_len, rq_pkt_num;
+	u8 *buf;
+	u8 *sgl_va;
+	int ip_version = 4, temp = 0;
+
+	/* check for rq completions */
+	rq_db_addr = (volatile u32 *)xl->qp1_rq_db_v;
+	rq_wr_current = *rq_db_addr;
+
+	dev_dbg(&xib->ib_dev.dev, "rq_wr_current: %d, rq_wrptr_db_local: %d\n", rq_wr_current,
+			rq->rq_wrptr_db_local);
+
+	received = xib_get_rq_recd(rq, rq_wr_current);
+
+	dev_dbg(&xib->ib_dev.dev, "received %d frames on RQ\n", received);
+
+	for (i = 0; i < received; i++) {
+		rq_pkt_num = rq->rq_wrptr_db_local;
+		if (rq_pkt_num >= rq->max_wr) {
+			rq_pkt_num = rq_pkt_num - rq->max_wr;
+		}
+
+		buf = (u8 *)(rq->rq_ba_v) + (rq_pkt_num * qp->rq_buf_size);
+		ret = is_ipv4_addr(buf);
+		if (ret) {
+			ip6h = (struct ipv6hdr *)buf;
+			mad_len = IB_GRH_BYTES + ntohs(ip6h->payload_len);
+			ip_version = 6;
+		} else {
+			/* Set ipv4 header ptr to buf + 20 which actually is the
+				start of ipv4 header */
+			iph = (struct iphdr *)(buf + IB_GRH_BYTES - IB_IP4_BYTES);
+			mad_len = ntohs(iph->tot_len);
+			ip_version = 4;
+		}
+
+		rqe = &(rq->rqe_list[rq->gsi_cons]);
+
+		/* TODO sg_list.addr is hw (dma) address
+		 * this works on uBlaze as VA = PA */
+		/* first copy iphdr */
+		/* TODO copy 40 bytes for ipv6 */
+		sgl_va = (u8 *)phys_to_virt((unsigned long)(rqe->sg_list[0].addr));
+
+		rqe->ip_version = ip_version;
+		memcpy((void *)sgl_va, buf, IB_GRH_BYTES);
+		offset = IB_GRH_BYTES;
+		buf += (IB_GRH_BYTES + IB_UDP_BYTES + IB_BTH_BYTES + IB_DETH_BYTES); /* skip ip, udp, ibh, deth */
+
+		temp = IB_UDP_BYTES + IB_BTH_BYTES + IB_DETH_BYTES;
+		if (ip_version == 4)
+			temp += IB_IP4_BYTES;
+		else
+			temp += IB_GRH_BYTES;
+		memcpy((void *)(sgl_va + offset), buf, mad_len - temp);
+
+		rqe->sg_list[0].length = mad_len - 8;
+
+		xib_inc_sw_gsi_cons(rq);
+
+		rq->rq_wrptr_db_local++;
+		/* tell hw we consumed */
+		xrnic_iow(xl, XRNIC_RQ_CONS_IDX(qp->hw_qpn),
+				rq->rq_wrptr_db_local);
+		wmb();
+
+		if(rq->rq_wrptr_db_local == rq->max_wr)
+			rq->rq_wrptr_db_local = 0;
+
+		cq = qp->rq_cq;
+		if (cq->ib_cq.comp_handler)
+			(*cq->ib_cq.comp_handler) (&cq->ib_cq, cq->ib_cq.cq_context);
+	}
+
+	cq = qp->sq_cq;
+	/* check for sq completions */
+	if (cq->ib_cq.comp_handler)
+		(*cq->ib_cq.comp_handler) (&cq->ib_cq, cq->ib_cq.cq_context);
+}
+
 #define NUM_CQ_INT_BANKS 8
 void xib_irq_event(struct xilinx_ib_dev *xib, u32 status)
 {
@@ -642,4 +748,6 @@ void xrnic_hw_deinit(struct xilinx_ib_dev *xib)
 
 	free_irq(xl->irq, xib);
 	kfree(xl);
+
+    ib_dealloc_device(&xib->ib_dev);
 }

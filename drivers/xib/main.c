@@ -754,14 +754,14 @@ static int xib_dealloc_pd(struct ib_pd *ibpd, struct ib_udata * udata)
 
 /*u8 port 编译不通过 更改为u32,函数定义在netfiliter/x_tables.h*/
 static enum rdma_link_layer xib_get_link_layer(struct ib_device *device,
-						    u32 port_num)
+						    u8 port_num)
 {
 	return IB_LINK_LAYER_ETHERNET;
 }
 
 /* Device */
 /*u8 port 编译不通过 更改为u32,函数定义在netfiliter/x_tables.h*/
-struct net_device *xib_get_netdev(struct ib_device *ibdev, u32 port_num)
+struct net_device *xib_get_netdev(struct ib_device *ibdev, u8 port_num)
 {
 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibdev);
 	struct net_device *netdev = NULL;
@@ -776,6 +776,7 @@ struct net_device *xib_get_netdev(struct ib_device *ibdev, u32 port_num)
 		dev_hold(netdev);
 
 	rcu_read_unlock();
+    xib_printfunc("%s end\n",__func__);
 	return netdev;
 }
 
@@ -821,7 +822,7 @@ static int xib_query_device(struct ib_device *ibdev,
 	props->max_pkeys	= 1;
 	props->max_qp_rd_atom   = 0x10; /* TODO how to arrive at these */
 	props->max_qp_init_rd_atom = 0x10;
-
+    xib_printfunc("%s end\n",__func__);
 	return 0;
 }
 
@@ -842,8 +843,8 @@ struct ib_qp *xib_create_qp(struct ib_pd *pd,
 		return ERR_PTR(-EINVAL);
 
 	switch (init_attr->qp_type) {
-	//case IB_QPT_GSI:
-		//return xib_gsi_create_qp(pd, init_attr);
+	case IB_QPT_GSI:
+		return xib_gsi_create_qp(pd, init_attr);
 	case IB_QPT_RC:
 	if (!check_qp_depths(init_attr->cap.max_send_wr)) {
 		dev_err(&pd->device->dev, "qp depth should be a power of 2\n");
@@ -876,7 +877,7 @@ struct ib_qp *xib_create_qp(struct ib_pd *pd,
 }
 
 /*u8 port 编译不通过 更改为u32,函数定义在netfiliter/x_tables.h*/
-int xib_query_port(struct ib_device *ibdev, u32 port,
+int xib_query_port(struct ib_device *ibdev, u8 port,
 		       struct ib_port_attr *props)
 {
 	struct xilinx_ib_dev *xib = get_xilinx_dev(ibdev);
@@ -912,13 +913,13 @@ int xib_query_port(struct ib_device *ibdev, u32 port,
 	props->subnet_timeout = 0;
 	props->init_type_reply = 0;
 	props->pkey_tbl_len = 1; /* TODO is it 1? */
-
+    xib_printfunc("%s end\n",__func__);
 	return 0;
 }
 
 /*u8 port 编译不通过 更改为u32,函数定义在netfiliter/x_tables.h*/
 #define PKEY_ID	0xffff
-static int xib_query_pkey(struct ib_device *ibdev, u32 port, u16 index,
+static int xib_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
 			      u16 *pkey)
 {
 	dev_dbg(&ibdev->dev, "%s : <---------- \n", __func__);
@@ -929,6 +930,7 @@ static int xib_query_pkey(struct ib_device *ibdev, u32 port, u16 index,
 #define XIB_MAX_PORT	1
 int xib_add_gid(const struct ib_gid_attr *attr, void **context)
 {
+    xib_printfunc("%s start \n", __func__);
 	if (!rdma_cap_roce_gid_table(attr->device, attr->port_num))
 		return -EINVAL;
 
@@ -943,6 +945,7 @@ int xib_add_gid(const struct ib_gid_attr *attr, void **context)
 
 int xib_del_gid(const struct ib_gid_attr *attr, void **context)
 {
+    xib_printfunc("%s start \n", __func__);
 	if (!rdma_cap_roce_gid_table(attr->device, attr->port_num))
 		return -EINVAL;
 
@@ -959,7 +962,7 @@ int xib_create_ah(struct ib_ah *ibah, struct rdma_ah_init_attr *ah_attr,
 				struct ib_udata *udata)
 {
 	struct xib_ah *ah = get_xib_ah(ibah);
-
+    dev_dbg(&ibah->device->dev, "%s : <---------- \n", __func__);
 	ah->attr = *ah_attr;
 	return 0;
 }
@@ -991,7 +994,7 @@ int get_rq_pending_cnt(struct ib_qp *ibqp)
 		ret = (rq_pi - rq_ci);
 	else
 		ret = (qp->rq.max_wr - rq_ci + rq_pi);
-
+    xib_printfunc("%s end\n",__func__);
 	return ret;
 }
 
@@ -1116,7 +1119,7 @@ int xib_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
 
     /* 需根据内核版本更改 */
 	// if (attr_mask & IB_QP_RST_SQ_CQ)
-	// 	return xib_rst_cq_sq(qp, attr->nvmf_rhost);
+	// 	return xib_rst_cq_sq(qp, attr->nvmf_rhost,);
 	curr_qp_state = xib_get_ibqp_state(qp->state);
 	if (attr_mask & IB_QP_STATE)
 		new_qp_state = attr->qp_state;
@@ -1621,61 +1624,11 @@ static int __xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
 					size = XRNIC_MAX_SDATA;
 				}
 
-#ifdef ARCH_HAS_	PS
-				if (strcasecmp(from, "ps") == 0) {
-					xwqe.l_addr = plb->pa;
-				} else {
-					/* program only the lower 32
-					* as hw assumes the upper
-					*/
-					xwqe.l_addr = lower_32_bits(plb->pa);
-				}
-#else
 				xwqe.l_addr = plb->pa;
-#endif
 				xwqe.r_offset = 0;
 				xwqe.r_tag = 0;
 			} else {
-#ifdef ARCH_HAS_	PS
-				if (strcasecmp(sq_mem, "ps") == 0) {
-					xwqe.l_addr = wr->sg_list[0].addr;
-				} else {
-					/* even if sq_mem is requested from bram
-					* for these admin path we dont really
-					* need bram
-					*/
-					struct xib_pl_buf *plb;
-					void *sgl_va;
-
-					plb = &qp->sq.pl_buf_list[qp->sq.sq_cmpl_db_local];
-
-					BUG_ON(!xib_pl_present());
-
-					plb->va = xib_alloc_coherent("pl", xib,
-							wr->sg_list[0].length,
-							&plb->pa,
-							GFP_KERNEL);
-					if (!plb->va) {
-						spin_unlock_irqrestore(&qp->sq_lock, flags);
-						dev_err(&ibqp->device->dev, "failed to alloc rdma rd/wr mem\n");
-						ret = -ENOMEM;
-						goto fail;
-					}
-					/* program only the lower 32
-					* as hw assumes the upper
-					*/
-					xwqe.l_addr = lower_32_bits(plb->pa);
-					plb->sgl_addr = wr->sg_list[0].addr;
-					plb->len = wr->sg_list[0].length;
-					if (wr->opcode == IB_WR_RDMA_WRITE) {
-						sgl_va = (void *)phys_to_virt(
-								(unsigned long) plb->sgl_addr);
-						memcpy(plb->va, sgl_va, plb->len);
-					}
-				}
-#else
 				xwqe.l_addr = lower_32_bits(wr->sg_list[0].addr);
-#endif
 				size = wr->sg_list[0].length;
 			}
 
@@ -1698,11 +1651,7 @@ static int __xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
 			dest = (void *)(qp->sq_ba_v +
 					qp->sq.sq_cmpl_db_local * sizeof(struct xrnic_wr));
 
-			// if (qp->io_qp && strcasecmp(sq_mem, "bram") == 0) {
-			// 	printk("doing memcpy_toio\n");
-			// 	memcpy_toio(dest, &xwqe, sizeof(struct xrnic_wr));
-			// } else
-				memcpy(dest, &xwqe, sizeof(struct xrnic_wr));
+            memcpy(dest, &xwqe, sizeof(struct xrnic_wr));
 
 			if ((wr->opcode == IB_WR_SEND_WITH_IMM) | (wr->opcode == IB_WR_RDMA_WRITE_WITH_IMM))
 				/* xwqe.imm_data */
@@ -1894,7 +1843,7 @@ int xib_dereg_mr(struct ib_mr *ibmr, struct ib_udata *udata)
 	return 0;
 }
 
-static int xib_port_immutable(struct ib_device *ibdev, u32 port_num,
+static int xib_port_immutable(struct ib_device *ibdev, u8 port_num,
 			       struct ib_port_immutable *immutable)
 {
 	dev_dbg(&ibdev->dev, "%s : port_num: %d <---------- \n", __func__, port_num);
@@ -1909,7 +1858,7 @@ static int xib_port_immutable(struct ib_device *ibdev, u32 port_num,
 
 static const struct ib_device_ops xib_dev_ops = {
     .owner	= THIS_MODULE,
-	// .driver_id = RDMA_DRIVER_XLNX,
+	.driver_id = RDMA_DRIVER_XLNX,
     .uverbs_abi_ver	= 1,
 
     .query_device	= xib_query_device,
@@ -1930,7 +1879,7 @@ static const struct ib_device_ops xib_dev_ops = {
 
 	.create_ah	= xib_create_ah,
 	.destroy_ah	= xib_destroy_ah,
-	// .create_qp	= xib_create_qp,
+	.create_qp	= xib_create_qp,
     .modify_qp	= xib_modify_qp,
     .query_qp	= xib_query_qp,
     .destroy_qp	= xib_destroy_qp,

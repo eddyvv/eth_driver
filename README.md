@@ -1,10 +1,12 @@
 # eth_driver
-网络设备驱动
+
+Linux内核版本需为5.10.0
 
 ## 编译
 ```bash
 $ cd drivers
-$ export PWD=$(pwd)
+# 配置属性，如果为虚拟机下使用 PLATFORM=(uname -r)-vm，实体机使用PLATFORM=(uname -r)
+$ export PWD=$(pwd) PLATFORM=(uname -r)
 $ make
 ```
 ## 安装

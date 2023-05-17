@@ -264,6 +264,10 @@ int xib_poll_kernel_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc);
 
 int xib_gsi_poll_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc);
 
+int xib_get_rq_recd(struct xib_rq *rq, u32 rq_wr_current);
+
+struct ib_qp *xib_gsi_create_qp(struct ib_pd *pd,
+				struct ib_qp_init_attr *init_attr);
 
 int xib_build_qp1_send_v2(struct ib_qp *ib_qp,
 			const struct ib_send_wr *wr,
