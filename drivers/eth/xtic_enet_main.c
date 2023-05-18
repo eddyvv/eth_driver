@@ -1821,12 +1821,41 @@ static void xtenet_shutdown(struct pci_dev *pdev)
     xt_printfunc("%s end\n",__func__);
 }
 
+static int  xt_core_sriov_configure(struct pci_dev *pdev, int num_vfs)
+{
+    int ret;
+    int total_vfs = pci_sriov_get_totalvfs(pdev);
+    dev_info(&pdev->dev, "PCI enable sriov num_vfs(=%d)!!\n", num_vfs);
+
+    if (num_vfs > total_vfs) {
+		pr_info("%s, clamp down # of VFs %d -> %d.\n",
+			dev_name(&pdev->dev), num_vfs, total_vfs);
+		num_vfs = total_vfs;
+	}
+
+    if (num_vfs) {
+		ret = pci_enable_sriov(pdev, num_vfs);
+		if (ret)
+			dev_err(&pdev->dev, "SRIOV enable failed %d\n", ret);
+		else
+			return num_vfs;
+	}else if (!pci_vfs_assigned(pdev)) {
+		pci_disable_sriov(pdev);
+	} else {
+		dev_warn(&pdev->dev,
+			 "Unable to free VFs because some are assigned to VMs.\n");
+	}
+
+    return 0;
+}
+
 static struct pci_driver xtenet_driver = {
     .name     = xtenet_driver_name,
     .id_table   = xtenet_pci_tbl,
     .probe      = xtenet_probe,
     .remove     = xtenet_remove,
     .shutdown   = xtenet_shutdown,
+    .sriov_configure = xt_core_sriov_configure
 };
 
 static int __init xtenet_init_module(void)
