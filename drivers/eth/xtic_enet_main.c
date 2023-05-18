@@ -1606,6 +1606,12 @@ static int __maybe_unused axienet_dma_probe(struct pci_dev *pdev,
     return 0;
 }
 
+static void xt_vf_setup(struct axienet_local *lp)
+{
+
+    lp->flags |= XTIC_FLAGS_SRIOV_ENABLED;
+}
+
 static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
     int err;
@@ -1766,27 +1772,55 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     lp->xcdev = xcdev;
     xcdev->axidev = lp;
 
-    xtic_cdev_create_interfaces(xcdev);
+    if(xt_cdev_enable(lp))
+        xtic_cdev_create_interfaces(xcdev);
+
+    if(lp->num_vfs)
+        xt_vf_setup(lp);
 
     strcpy(ndev->name, "eth%d");
     err = register_netdev(ndev);
     if (err) {
         xtenet_core_err(lp, "register_netdev() error (%i)\n", err);
-        // axienet_mdio_teardown(pdev);
         goto xt_err_init_one;
     }
 
     /* 添加roce链表 */
-    // lp->function_mode = XTIC_RDMA_ENABLED;
-    xt_roce_dev_add(lp);
+#if defined(XT_RDMA_ENABLE)
+    lp->flags = XTIC_RDMA_ENABLED;
+#endif
+    if(xt_roce_supported(lp))
+        xt_roce_dev_add(lp);
 
     return 0;
 /* 错误处理 */
 xt_err_init_one:
     xtenet_pci_close(lp);
+    if(xt_cdev_enable(lp))
+        kfree(lp->xcdev);
 free_netdev:
     free_netdev(ndev);
     return err;
+}
+
+static void xt_disable_sriov(struct pci_dev *pdev)
+{
+    struct axienet_local *lp = pci_get_drvdata(pdev);
+	/* If our VFs are assigned we cannot shut down SR-IOV
+	 * without causing issues, so just leave the hardware
+	 * available but disabled
+	 */
+	if (pci_vfs_assigned(pdev)) {
+		dev_warn(&pdev->dev,
+			 "disabling driver while VFs are assigned\n");
+		goto done;
+	}
+
+	pci_disable_sriov(pdev);
+
+done:
+    lp->num_vfs = 0;
+    lp->flags &= XTIC_FLAGS_SRIOV_ENABLED;
 }
 
 /* xtenet卸载函数 */
@@ -1795,22 +1829,35 @@ static void xtenet_remove(struct pci_dev *pdev)
     struct axienet_local *lp = pci_get_drvdata(pdev);
     xt_printk("%s start\n",__func__);
 
-    xt_roce_dev_remove(lp);
+    if(xt_roce_supported(lp))
+        xt_roce_dev_remove(lp);
+
     unregister_netdev(lp->ndev);
+
+    if(xt_sriov_enabled(lp))
+        xt_disable_sriov(pdev);
+
     iounmap(lp->bar0.v_regs);
     xtenet_pci_close(lp);
     xtnet_irq_deinit_pcie(lp);
     free_netdev(lp->ndev);
-    xtic_cdev_destroy_interfaces(lp->xcdev);
+
+    if(xt_roce_supported(lp))
+        xtic_cdev_destroy_interfaces(lp->xcdev);
+
     xt_printk("%s end\n",__func__);
 }
 
 static void xtenet_shutdown(struct pci_dev *pdev)
 {
-    struct net_device *ndev = pci_get_drvdata(pdev);
+    struct axienet_local *lp = pci_get_drvdata(pdev);
+    struct net_device *ndev = lp->ndev;
 
     xt_printfunc("%s start\n",__func__);
-    // xt_roce_dev_shutdown();
+
+    if(xt_sriov_enabled(lp))
+        xt_roce_dev_shutdown(lp);
+
     rtnl_lock();
     netif_device_detach(ndev);
 
@@ -1863,7 +1910,9 @@ static int __init xtenet_init_module(void)
     int ret;
     xt_printk("%s\n",__func__);
 
-    // xtic_cdev_init();
+#if defined(XT_ENABLE_CDEV)
+    xtic_cdev_init();
+#endif
 
     ret = pci_register_driver(&xtenet_driver);
     return ret;

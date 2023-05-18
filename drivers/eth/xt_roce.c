@@ -43,17 +43,15 @@ void xt_roce_dev_add(struct axienet_local *adapter)
     int ret;
     xib_printfunc("%s start\n", __func__);
 
-    if (xt_roce_supported(adapter)) {
-        INIT_LIST_HEAD(&adapter->entry);
-        mutex_lock(&xt_adapter_list_lock);
-        list_add_tail(&adapter->entry, &xt_roce_list);
-        ret = _xt_roce_dev_add(adapter);
-        if (ret)
-			dev_err(&adapter->pdev->dev,
-				"match and instantiation failed for port, ret = %d\n",
-				ret);
-        mutex_unlock(&xt_adapter_list_lock);
-    }
+    INIT_LIST_HEAD(&adapter->entry);
+    mutex_lock(&xt_adapter_list_lock);
+    list_add_tail(&adapter->entry, &xt_roce_list);
+    ret = _xt_roce_dev_add(adapter);
+    if (ret)
+        dev_err(&adapter->pdev->dev,
+            "match and instantiation failed for port, ret = %d\n",
+            ret);
+    mutex_unlock(&xt_adapter_list_lock);
     xib_printfunc("%s end\n", __func__);
 }
 
@@ -61,18 +59,19 @@ static void _xt_roce_dev_remove(struct axienet_local *adapter)
 {
     if(xib_drv && xib_drv->remove && adapter->xib_dev)
         xib_drv->remove(adapter->xib_dev);
+    adapter->flags &= XTIC_FLAGS_RDMA_ENABLED;
     adapter->xib_dev = NULL;
 }
 
 void xt_roce_dev_remove(struct axienet_local *adapter)
 {
     xib_printfunc("%s start\n", __func__);
-    if(xt_roce_supported(adapter)) {
-        mutex_lock(&xt_adapter_list_lock);
-        _xt_roce_dev_remove(adapter);
-        list_del(&adapter->entry);
-        mutex_unlock(&xt_adapter_list_lock);
-    }
+
+    mutex_lock(&xt_adapter_list_lock);
+    _xt_roce_dev_remove(adapter);
+    list_del(&adapter->entry);
+    mutex_unlock(&xt_adapter_list_lock);
+
     xib_printfunc("%s end\n", __func__);
 }
 

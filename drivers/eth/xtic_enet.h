@@ -264,9 +264,13 @@
  * ROCE
  */
 #define xt_roce_supported(adapter)	(xt_skyhawk_chip(adapter) && \
-					(adapter->function_mode & XTIC_RDMA_ENABLED))
+					(adapter->flags & XTIC_FLAGS_RDMA_ENABLED))
 
+#define xt_sriov_enabled(adapter)		(adapter->flags &	\
+					 XTIC_FLAGS_SRIOV_ENABLED)
 
+#define xt_cdev_enable(adapter)		(adapter->flags &	\
+					 XTIC_FLAGS_CDEV_ENABLED)
 
 enum xtenet_pci_status {
     XTNET_PCI_STATUS_DISABLED,
@@ -440,7 +444,6 @@ struct xtic_cdev {
 struct xib_local {
     struct xilinx_ib_dev *xib_dev;
     struct list_head entry;
-    u32 function_mode;
 };
 
 /**
@@ -575,7 +578,9 @@ struct axienet_local {
     /* ROCE */
     struct xilinx_ib_dev *xib_dev;
     struct list_head entry;
-    u32 function_mode;
+    u32 flags;
+
+    u16 num_vfs;
 
 };
 
@@ -745,12 +750,12 @@ static inline u32 axienet_ior(struct axienet_local *lp, off_t offset)
 
 
 
+
 /*
  * internal function to initialize-cleanup roce device.
  */
 void xt_roce_dev_add(struct axienet_local *adapter);
 void xt_roce_dev_remove(struct axienet_local *adapter);
-
-
+void xt_roce_dev_shutdown(struct axienet_local *adapter);
 
 #endif /* ETH_SMART_NIC_250SOC_H */

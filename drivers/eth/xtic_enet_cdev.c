@@ -273,6 +273,7 @@ void xtic_cdev_destroy_interfaces(struct xtic_cdev *xcdev)
     destroy_xcdev(xcdev);
     if(xcdev->major)
         unregister_chrdev_region(xcdev->devid, 1);
+    kfree(xcdev);
 }
 
 static struct class *g_xdma_class;
