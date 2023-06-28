@@ -47,9 +47,6 @@ endif
 install_ib_core:
 	sudo insmod /lib/modules/$(shell uname -r)/kernel/drivers/infiniband/core/ib_core.ko
 
-printenv:
-	printenv PLATFORM PWD
-
 clean:
 	@for dir in $(SUBDIRS_ALL); do \
 		make -C $$dir clean; \

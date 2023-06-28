@@ -395,7 +395,7 @@ int update_mtu(struct net_device *dev)
 	}
 
 	/* update ib dev structure with mtu */
-	pr_debug("Updating MTU to %d\n", mtu);
+	pr_debug("Updating MTU to %d\n", 256 << mtu);
 	ibdev->mtu = mtu;
 	return 0;
 }
