@@ -43,7 +43,7 @@ int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num)
 		return -EINVAL;
 
 	__set_bit(*id_num, bmap->bitmap);
-    xib_printfunc("%s start\n", __func__);
+    xib_printfunc("%s end\n", __func__);
 	return 0;
 }
 

@@ -27,5 +27,5 @@ $ make clean
 ```bash
 make -C . M=./drivers/infiniband/core modules
 
-sudo cp ./drivers/infiniband/core/*.ko /lib/modules/5.15.0/kernel/drivers/infiniband/core/
+sudo cp ./drivers/infiniband/core/*.ko /lib/modules/5.10.0/kernel/drivers/infiniband/core/
 ```
