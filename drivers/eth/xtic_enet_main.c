@@ -1787,7 +1787,7 @@ static int xtenet_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
     /* 添加roce链表 */
 #if defined(XT_RDMA_ENABLE)
-    lp->flags = XTIC_RDMA_ENABLED;
+    lp->flags |= XTIC_FLAGS_RDMA_ENABLED;
 #endif
     if(xt_roce_supported(lp))
         xt_roce_dev_add(lp);
@@ -1820,7 +1820,7 @@ static void xt_disable_sriov(struct pci_dev *pdev)
 
 done:
     lp->num_vfs = 0;
-    lp->flags &= XTIC_FLAGS_SRIOV_ENABLED;
+    lp->flags &= ~XTIC_FLAGS_SRIOV_ENABLED;
 }
 
 /* xtenet卸载函数 */

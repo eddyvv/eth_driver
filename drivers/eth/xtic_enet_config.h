@@ -23,9 +23,9 @@
 
 #define XTIC_PCIE_MAX_IRQ       3
 
-#define XTIC_FLAGS_CDEV_ENABLED       (0x1 << 1)
-#define XTIC_FLAGS_RDMA_ENABLED       (0x1 << 2)
-#define XTIC_FLAGS_SRIOV_ENABLED      (0x1 << 3)
+#define XTIC_FLAGS_CDEV_ENABLED       (0x1ul << 1)
+#define XTIC_FLAGS_RDMA_ENABLED       (0x1ul << 2)
+#define XTIC_FLAGS_SRIOV_ENABLED      (0x1ul << 3)
 
 
 #endif /* XTIC_ENET_CONFIG_H */
