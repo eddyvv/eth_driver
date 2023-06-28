@@ -76,7 +76,7 @@ void xib_gsi_comp_handler(unsigned long data)
 	struct xib_rq *rq = &qp->rq;
 	volatile u32 *rq_db_addr;
 	u32 rq_wr_current;
-	struct ethhdr *eth_hdr;
+	// struct ethhdr *eth_hdr;
 	struct iphdr *iph;
 	struct ipv6hdr *ip6h;
 	struct xib_cq *cq;

@@ -1686,7 +1686,7 @@ fail:
 int xib_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
 		      const struct ib_send_wr **bad_wr)
 {
-	struct ib_send_wr *twr = wr;
+	// struct ib_send_wr *twr = wr;
 	dev_dbg(&ibqp->device->dev, "%s : <---------- \n", __func__);
 
 	if(ibqp->qp_type == IB_QPT_GSI)

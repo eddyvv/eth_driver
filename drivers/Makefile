@@ -9,12 +9,14 @@ include mk/common.mk
 SUBDIRS_ALL := eth xib
 
 ifeq ($(PLATFORM), $(KERNEL_VERSION_5_10_VM))
-$(info PLATFORM = $(PLATFORM))
+$(info PLATFORM = $(PLATFORM) PWD = $(PWD))
 else ifeq ($(PLATFORM), $(KERNEL_VERSION_5_10))
-$(info PLATFORM = $(PLATFORM))
+$(info PLATFORM = $(PLATFORM) PWD = $(PWD))
 else
 $(error PLATFORM setting error; Please check README!!!)
 endif
+
+$(info EXTRA_CFLAGS = $(EXTRA_CFLAGS))
 
 .PHONY: all clean install install_xib install_eth $(SUBDIRS_ALL)
 
