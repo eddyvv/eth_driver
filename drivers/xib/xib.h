@@ -115,4 +115,9 @@ int xib_bmap_alloc_id(struct xib_bmap *bmap, u32 *id_num);
 void xib_bmap_release_id(struct xib_bmap *bmap, u32 id_num);
 void xib_fatal_handler(unsigned long data);
 void xib_cnp_handler(unsigned long data);
+struct ib_qp *xib_create_user_qp(struct ib_pd *ib_pd,
+				struct ib_qp_init_attr *init_attr,
+				struct ib_udata *udata);
+struct ib_qp *xib_create_kernel_qp(struct ib_pd *ib_pd,
+				struct ib_qp_init_attr *init_attr);
 #endif /* _XIB_H_ */

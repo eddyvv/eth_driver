@@ -365,7 +365,7 @@ struct xrnic_local *xrnic_hw_init(struct xib_dev_info *dev_info, struct xilinx_i
 void xrnic_hw_deinit(struct xilinx_ib_dev *xib);
 void xrnic_set_mac(struct xrnic_local *xl, u8 *mac);
 int xrnic_start(struct xrnic_local *xl);
-
+void xib_comp_handler(unsigned long data);
 
 
 
