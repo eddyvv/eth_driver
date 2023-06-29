@@ -826,7 +826,6 @@ static int xib_query_device(struct ib_device *ibdev,
 	return 0;
 }
 
-/*不使用umm.c，删除IB_QPT_GSI、xib_create_kernel_qp*/
 struct ib_qp *xib_create_qp(struct ib_pd *pd,
 				struct ib_qp_init_attr *init_attr,
 				struct ib_udata *udata)
@@ -854,10 +853,10 @@ struct ib_qp *xib_create_qp(struct ib_pd *pd,
 		dev_err(&pd->device->dev, "qp depth should be a power of 2\n");
 		return ERR_PTR(-EINVAL);
 	}
-	// if (udata)
-		//ibqp = xib_create_user_qp(pd, init_attr, udata);
-		// else
-		// 	ibqp = xib_create_kernel_qp(pd, init_attr);
+	if (udata)
+        ibqp = xib_create_user_qp(pd, init_attr, udata);
+    else
+        ibqp = xib_create_kernel_qp(pd, init_attr);
 /*
  * AR# 75247: Initialize STAT_QPN.curr_rnr_retry_cnt and curr_retry_cnt
  */

@@ -56,6 +56,28 @@ int xrnic_start(struct xrnic_local *xl)
 	return 0;
 }
 
+void xib_comp_handler(unsigned long data)
+{
+	struct xib_qp *qp = (struct xib_qp *)data;
+	struct xib_cq *cq;
+
+	if (!qp) {
+		pr_err("%s: qp is null\n", __func__);
+		return;
+	}
+
+	/* check for rq completions */
+	cq = qp->rq_cq;
+
+	if (cq->ib_cq.comp_handler)
+		(*cq->ib_cq.comp_handler) (&cq->ib_cq, cq->ib_cq.cq_context);
+
+	cq = qp->sq_cq;
+	/* check for sq completions */
+	if (cq->ib_cq.comp_handler)
+		(*cq->ib_cq.comp_handler) (&cq->ib_cq, cq->ib_cq.cq_context);
+}
+
 int is_ipv4_addr(char *buf)
 {
 	/*TODO: Current design posts all 0's as the first 20B if it's IPV4 header,
