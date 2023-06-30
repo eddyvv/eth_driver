@@ -6,7 +6,8 @@
 ```bash
 $ cd drivers
 # 配置属性，如果为虚拟机下使用 PLATFORM=(uname -r)-vm，实体机使用PLATFORM=(uname -r)
-$ export PWD=$(pwd) PLATFORM=(uname -r)
+$ export PWD=$(pwd) PLATFORM=$(uname -r)
+$ export PWD=$(pwd) PLATFORM=$(uname -r)-vm
 $ make
 ```
 ## 安装
